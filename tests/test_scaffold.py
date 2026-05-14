@@ -1,17 +1,9 @@
-"""Smoke tests for Phase 1 scaffolding."""
+"""Smoke tests for scaffolding and package structure."""
 
 from __future__ import annotations
 
-import pytest
-from pydantic import BaseModel
-
 import tax_ops_filing_bot
-from tax_ops_filing_bot.llm.wrapper import AnthropicClient
 from tax_ops_filing_bot.main import main
-
-
-class _DummyModel(BaseModel):
-    x: int = 1
 
 
 def test_package_version() -> None:
@@ -19,10 +11,20 @@ def test_package_version() -> None:
 
 
 def test_main_callable() -> None:
+    """main() should run without error in scaffold mode (missing env vars)."""
     main()
 
 
-def test_anthropic_client_complete_json_not_implemented() -> None:
-    client = AnthropicClient(api_key="test")
-    with pytest.raises(NotImplementedError):
-        client.complete_json([], _DummyModel)
+def test_package_imports() -> None:
+    """All subpackages should be importable."""
+    import tax_ops_filing_bot.models  # noqa: F401
+    import tax_ops_filing_bot.llm  # noqa: F401
+    import tax_ops_filing_bot.jira  # noqa: F401
+    import tax_ops_filing_bot.services  # noqa: F401
+    import tax_ops_filing_bot.slack  # noqa: F401
+
+    assert tax_ops_filing_bot.models.FilingIssueDraft is not None
+    assert tax_ops_filing_bot.llm.AnthropicClient is not None
+    assert tax_ops_filing_bot.jira.JiraClient is not None
+    assert tax_ops_filing_bot.services.IntakeService is not None
+    assert tax_ops_filing_bot.services.SyncService is not None

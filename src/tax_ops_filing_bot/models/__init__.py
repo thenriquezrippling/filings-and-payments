@@ -1,3 +1,5 @@
-"""Pydantic schemas for LLM outputs and integrations (Phase 2)."""
+"""Pydantic schemas for LLM outputs and integrations."""
 
-__all__: list[str] = []
+from tax_ops_filing_bot.models.filing import FilingIssueDraft, ThreadMessage
+
+__all__: list[str] = ["FilingIssueDraft", "ThreadMessage"]

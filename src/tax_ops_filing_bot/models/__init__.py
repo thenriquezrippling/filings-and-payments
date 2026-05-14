@@ -1,3 +1,19 @@
-"""Pydantic schemas for LLM outputs and integrations (Phase 2)."""
+"""Pydantic schemas for LLM outputs and integrations."""
 
-__all__: list[str] = []
+from tax_ops_filing_bot.models.schemas import (
+    AgencyCode,
+    FilingIssueDraft,
+    FilingIssueCategory,
+    SyncRequest,
+    ThreadContext,
+    ThreadMessage,
+)
+
+__all__ = [
+    "AgencyCode",
+    "FilingIssueDraft",
+    "FilingIssueCategory",
+    "SyncRequest",
+    "ThreadContext",
+    "ThreadMessage",
+]

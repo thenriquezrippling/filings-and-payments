@@ -2,22 +2,19 @@
 
 Standalone Python bot for Tax Ops **filing** issue intake: read a Slack thread, infer Jira fields with an LLM, confirm in Slack, then create a ticket in project **FILING** (or sync thread text to an existing issue).
 
-**Phase 1 (current):** repository scaffolding only — packaging, module layout, stub entrypoint, and smoke tests. No Bolt listeners, Jira calls, or live LLM yet.
-
 Requires **Python 3.11+** (`requires-python` in `pyproject.toml`).
 
 ## Layout
 
-- `src/tax_ops_filing_bot/slack/` — Slack Bolt app and Block Kit (Phase 4)
-- `src/tax_ops_filing_bot/jira/` — Atlassian REST client (Phase 3)
-- `src/tax_ops_filing_bot/llm/` — Anthropic wrapper and prompts (Phase 2)
-- `src/tax_ops_filing_bot/services/` — Intake and sync orchestration (Phases 3–4)
-- `src/tax_ops_filing_bot/models/` — Pydantic schemas for structured outputs (Phase 2)
+- `src/tax_ops_filing_bot/slack/` — Slack Bolt app, `app_mention` handler, Block Kit confirmation UI, thread fetching
+- `src/tax_ops_filing_bot/jira/` — Jira Cloud REST v3 client (create issue, add comment, transition, labels)
+- `src/tax_ops_filing_bot/llm/` — Anthropic wrapper with retry + JSON-to-Pydantic parsing, filing-specific prompts
+- `src/tax_ops_filing_bot/services/` — `IntakeService` (thread → LLM → Jira) and `SyncService` (thread → comment)
+- `src/tax_ops_filing_bot/models/` — Pydantic schemas: `FilingIssueDraft`, `ThreadContext`, `SyncRequest`, enums
 
 ## Setup
 
 ```bash
-cd filing-jira-bot
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -25,7 +22,7 @@ cp .env.example .env
 # Edit .env with real credentials
 ```
 
-Run the scaffold entrypoint:
+Run the bot:
 
 ```bash
 tax-ops-filing-bot
@@ -38,44 +35,55 @@ Run tests:
 pytest
 ```
 
+## How it works
+
+1. **Mention the bot in a Slack thread** — the bot reads all messages in the thread.
+2. **LLM extraction** — Claude analyzes the thread and produces a structured `FilingIssueDraft` with summary, description, category, agency, priority, labels, affected entities, and suggested DRI.
+3. **Confirmation** — the bot posts a Block Kit card in the thread with the draft details and "Create Ticket" / "Cancel" buttons.
+4. **Jira creation** — on confirmation, a FILING issue is created with all extracted fields and a link back to the Slack thread.
+5. **Sync mode** — mention the bot with `sync this thread to FILING-XXXX` to append thread content as a comment on an existing issue.
+
 ## Environment variables
 
-| Variable | Required (Phase 1) | Description |
-|----------|-------------------|-------------|
-| `SLACK_BOT_TOKEN` | For Slack (later) | Bot user OAuth token (`xoxb-...`) |
-| `SLACK_APP_TOKEN` | If using Socket Mode | App-level token with `connections:write` |
-| `JIRA_BASE_URL` | For Jira (later) | Cloud site URL, e.g. `https://your-domain.atlassian.net` |
-| `JIRA_EMAIL` | For Jira (later) | Account email for API basic auth |
-| `JIRA_API_TOKEN` | For Jira (later) | [API token](https://id.atlassian.com/manage-profile/security/api-tokens) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SLACK_BOT_TOKEN` | Yes | Bot user OAuth token (`xoxb-...`) |
+| `SLACK_APP_TOKEN` | For Socket Mode | App-level token with `connections:write` |
+| `JIRA_BASE_URL` | Yes | Cloud site URL, e.g. `https://your-domain.atlassian.net` |
+| `JIRA_EMAIL` | Yes | Account email for API basic auth |
+| `JIRA_API_TOKEN` | Yes | [API token](https://id.atlassian.com/manage-profile/security/api-tokens) |
 | `JIRA_PROJECT_KEY` | Optional | Default `FILING` |
-| `ANTHROPIC_API_KEY` | For LLM (later) | Anthropic API key |
+| `ANTHROPIC_API_KEY` | Yes | Anthropic API key |
 | `SLACK_BOT_USER_ID` | Optional | Bot member ID for mention parsing |
 
-## Slack app (outline)
+## Slack app setup
 
-1. Create a Slack app; add **Bot Token Scopes** as needed later (e.g. `app_mentions:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `chat:write`, `users:read`).
+1. Create a Slack app; add **Bot Token Scopes**: `app_mentions:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `chat:write`, `users:read`.
 2. Install the app to the workspace; copy `SLACK_BOT_TOKEN`.
-3. **Socket Mode:** enable Socket Mode, create an app-level token with `connections:write`, set `SLACK_APP_TOKEN`. This is the simplest way to run the bot without a public URL.
-4. **HTTP mode (alternative):** enable Interactivity and Event Subscriptions with a public HTTPS endpoint; use the signing secret and omit `SLACK_APP_TOKEN` in favor of the Bolt HTTP adapter.
+3. **Socket Mode:** enable Socket Mode, create an app-level token with `connections:write`, set `SLACK_APP_TOKEN`.
+4. **HTTP mode (alternative):** enable Interactivity and Event Subscriptions with a public HTTPS endpoint.
 
-## Jira (outline)
+## Product rules
 
-Use Jira Cloud REST API v3 with email + API token (Basic auth). For create metadata and parent/epic fields, use [GET issue create metadata](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-createmeta-get) for project `FILING` and document required field IDs for your project type (next-gen `parent` vs classic Epic Link).
+- **No Jira ticket creation** without explicit Slack confirmation (button click).
+- **`@bot sync this thread to FILING-1234`:** append thread content to that issue only; never create a ticket or show create confirmation.
+- After create: post `Created FILING-KEY: summary` back in the thread with a Jira link.
 
-## Product rules (implementation roadmap)
+## Issue categories
 
-- **No Jira ticket creation** without explicit Slack confirmation (e.g. button).
-- **`@claude-filings sync this thread to FILING-1234`:** append thread content to that issue only; never create a ticket or show create confirmation.
-- After create: post `Sync [FILING-KEY]` back in the thread.
+The LLM maps threads to these filing-specific categories:
 
-## Roadmap
-
-| Phase | Scope |
-|-------|--------|
-| **1** | Scaffolding: `pyproject.toml`, packages, stub `main`, `.env.example`, README, smoke tests |
-| **2** | Pydantic models (`FilingIssueDraft`, etc.), `AnthropicClient.complete_json`, prompts, unit tests with mocks |
-| **3** | Jira client (create in FILING, labels, parent epic), sync-as-comment; `IntakeService` / `SyncService` |
-| **4** | Bolt `app_mention` in thread, confirmation blocks + action handlers, thread fetch, end-to-end tests with mocks |
+| Category | Description |
+|----------|-------------|
+| `missing_employee_data` | Blank SSNs, missing names, EFDS sync gaps |
+| `incorrect_wages` | SWWL $0, negative excess wages |
+| `peo_reconciliation` | PEO/RPEO wage aggregation mismatches |
+| `account_sync` | Missing FEINs, CAAS gaps, account numbers |
+| `payment_issue` | Payment diffs, delays, check issuance |
+| `efile_blocked` | IRS e-file blocked, ATS gateway issues |
+| `agency_change` | Portal changes, format changes, TPA auth |
+| `tax_config` | Recon rate errors, FF config overrides |
+| `other` | Anything else |
 
 ## License
 

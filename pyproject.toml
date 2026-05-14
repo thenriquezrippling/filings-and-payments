@@ -26,6 +26,7 @@ dev = [
 
 [project.scripts]
 tax-ops-filing-bot = "tax_ops_filing_bot.main:main"
+filing-draft = "tax_ops_filing_bot.cli:draft_from_thread"
 
 [tool.setuptools.packages.find]
 where = ["src"]

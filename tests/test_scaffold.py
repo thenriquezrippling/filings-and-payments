@@ -1,8 +1,7 @@
-"""Smoke tests for Phase 1 scaffolding."""
+"""Smoke tests for scaffolding."""
 
 from __future__ import annotations
 
-import pytest
 from pydantic import BaseModel
 
 import tax_ops_filing_bot
@@ -22,7 +21,6 @@ def test_main_callable() -> None:
     main()
 
 
-def test_anthropic_client_complete_json_not_implemented() -> None:
-    client = AnthropicClient(api_key="test")
-    with pytest.raises(NotImplementedError):
-        client.complete_json([], _DummyModel)
+def test_anthropic_client_init() -> None:
+    client = AnthropicClient(api_key="test-key")
+    assert client._model == "claude-sonnet-4-20250514"

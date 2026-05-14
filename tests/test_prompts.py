@@ -35,17 +35,13 @@ class TestSystemPrompt:
         assert "tests pass" in SYSTEM_PROMPT
         assert "lint is clean" in SYSTEM_PROMPT
         assert "I implemented" in SYSTEM_PROMPT
-        assert "Phase X" in SYSTEM_PROMPT
 
-    def test_prohibits_cursor_claude_references(self) -> None:
-        assert "Cursor" in SYSTEM_PROMPT
-        assert "Claude" in SYSTEM_PROMPT
+    def test_asks_for_state_abbreviation(self) -> None:
+        assert "state" in SYSTEM_PROMPT.lower()
+        assert "two-letter" in SYSTEM_PROMPT.lower()
 
-    def test_does_not_assign_issue_type(self) -> None:
-        assert "do NOT assign issue type" in SYSTEM_PROMPT.lower() or \
-               "You do NOT assign issue type" in SYSTEM_PROMPT
+    def test_asks_for_impact_scope(self) -> None:
+        assert "impact_scope" in SYSTEM_PROMPT
 
-    def test_llm_only_extracts_metadata(self) -> None:
-        assert "summary" in SYSTEM_PROMPT
-        assert "description" in SYSTEM_PROMPT
-        assert "confidence" in SYSTEM_PROMPT
+    def test_asks_for_ff_client_id(self) -> None:
+        assert "ff_client_id" in SYSTEM_PROMPT

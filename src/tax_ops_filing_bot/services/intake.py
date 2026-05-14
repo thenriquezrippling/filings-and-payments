@@ -85,8 +85,8 @@ class IntakeService:
 
         Pipeline:
         1. Filter out bot/dev-chatter messages
-        2. Send clean thread text to LLM for extraction (summary, description, metadata)
-        3. Apply deterministic mapping for issue_type, priority, parent_epic, labels
+        2. Send clean thread text to LLM for extraction
+        3. Apply deterministic mapping for issue_type, labels, SLA fields, etc.
         4. Sanitize description to remove any leaked implementation noise
         """
         clean_messages = filter_messages(messages)
@@ -104,12 +104,9 @@ class IntakeService:
         )
 
         mapping = apply_mapping(
-            jurisdiction=extraction.jurisdiction,
-            tax_type=extraction.tax_type,
-            tax_period=extraction.tax_period,
-            agency=extraction.agency,
-            filing_code=extraction.filing_code,
             description=extraction.description,
+            tax_period=extraction.tax_period,
+            impact_hint=extraction.impact_scope,
         )
 
         sanitized_description = _sanitize_description(extraction.description)
@@ -118,15 +115,18 @@ class IntakeService:
             summary=extraction.summary,
             description=sanitized_description,
             issue_type=mapping.issue_type,
-            priority=mapping.priority,
             labels=mapping.labels,
             parent_epic_key=mapping.parent_epic_key,
-            jurisdiction=extraction.jurisdiction,
-            tax_type=extraction.tax_type,
-            tax_period=extraction.tax_period,
-            agency=extraction.agency,
-            filing_code=extraction.filing_code,
-            client_or_entity=extraction.client_or_entity,
+            filing_period=mapping.filing_period,
+            year=mapping.year,
+            sla_priority=mapping.sla_priority,
+            sla_tracker=mapping.sla_tracker,
+            filing_frequency=mapping.filing_frequency,
+            ff_client_id=extraction.ff_client_id,
+            impact=mapping.impact,
+            state=extraction.state,
+            filing_unit_code=extraction.filing_code,
+            company_name=extraction.client_or_entity,
             source_channel=channel,
             source_thread_ts=None,
             reporter=extraction.reporter,

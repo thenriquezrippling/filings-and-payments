@@ -16,10 +16,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from tax_ops_filing_bot.llm.wrapper import AnthropicClient
-from tax_ops_filing_bot.models.filing import (
-    LLMExtraction,
-    ThreadMessage,
-)
+from tax_ops_filing_bot.models.filing import LLMExtraction, ThreadMessage
 from tax_ops_filing_bot.services.intake import IntakeService
 
 THREAD_MESSAGES = [
@@ -41,7 +38,6 @@ THREAD_MESSAGES = [
             "of Professional Employer Organization."
         ),
     ),
-    # Bot message — should be filtered out
     ThreadMessage(
         author="Claude",
         timestamp="5/14/2026, 6:40:00 AM",
@@ -59,19 +55,19 @@ class MockLLMClient:
     def complete_json(self, messages, response_model, *, system=None):
         return LLMExtraction(
             summary=(
-                "Pittsburgh EIT 1Q2026: Tax year displaying ET-2025 instead of "
-                "ET-2026 and PEO name defaulting to Rippling PEO 1, Inc."
+                "PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE: Tax year displaying "
+                "ET-2025 instead of ET-2026 and PEO name defaulting to "
+                "Rippling PEO 1, Inc."
             ),
             description=(
-                "During review of Pittsburgh EIT returns showing $0 balances "
+                "During review of Pittsburgh EIT $0 filing returns "
                 "(PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE 1Q2026), two issues "
                 "were identified:\n\n"
                 "1. Tax year mismatch: The tax year at the top of the return "
                 "displays \"ET-2025\" but should read \"ET-2026\" for the "
                 "1Q2026 filing period.\n\n"
                 "2. PEO company name on Payroll Expense Tax Allocation Schedule: "
-                "The Payroll Expense Tax Allocation Schedule Form appears on the "
-                "second page of the return. All clients are showing "
+                "The form appears on the second page. All clients are showing "
                 "\"Rippling PEO 1, Inc.\" as the Company Name of Professional "
                 "Employer Organization. Confirmation needed on whether this form "
                 "should be included and whether the PEO company name is correct "
@@ -79,12 +75,15 @@ class MockLLMClient:
             ),
             confidence=0.92,
             jurisdiction="City of Pittsburgh",
+            state="PA",
             tax_type="EIT",
             tax_period="1Q2026",
             agency="PA Local Treasurer - City of Pittsburgh",
             filing_code="PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE",
+            ff_client_id=None,
             client_or_entity="Rippling PEO 1, Inc.",
             reporter="Tony",
+            impact_scope="all clients",
         )
 
 

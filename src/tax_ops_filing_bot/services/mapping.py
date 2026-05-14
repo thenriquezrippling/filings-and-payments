@@ -1,8 +1,13 @@
-"""Deterministic mapping layer for agency/jurisdiction/tax_type to Jira fields.
+"""Deterministic mapping layer for the FILING Jira project.
 
-The LLM extracts raw metadata; this module applies rule-based mappings to
-assign issue_type, priority, parent_epic_key, and standardized labels.
-If no mapping exists, needs_mapping_review is set to True.
+Derives issue_type, labels, SLA fields, filing period/year, and parent epic
+from metadata extracted by the LLM.  All conventions are based on real tickets
+observed in the FILING project (rippling.atlassian.net).
+
+Label convention for blockers: ``Q{quarter}{2-digit-year}-filing-blocker``
+  e.g. Q126-filing-blocker, Q226-filing-blocker
+Retro items: ``q{quarter}{2-digit-year}-retro-item``
+Exclusions: ``q{quarter}{2-digit-year}-exclusions``
 """
 
 from __future__ import annotations
@@ -11,7 +16,15 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from tax_ops_filing_bot.models.filing import IssuePriority, IssueType
+from tax_ops_filing_bot.models.filing import (
+    FilingFrequency,
+    FilingPeriod,
+    FilingYear,
+    Impact,
+    IssueType,
+    SLAPriority,
+    SLATracker,
+)
 
 
 @dataclass(frozen=True)
@@ -19,109 +32,96 @@ class MappingResult:
     """Output of the deterministic mapping layer."""
 
     issue_type: IssueType
-    priority: IssuePriority
-    parent_epic_key: Optional[str]
     labels: list[str] = field(default_factory=list)
+    filing_period: Optional[FilingPeriod] = None
+    year: Optional[FilingYear] = None
+    filing_frequency: Optional[FilingFrequency] = None
+    sla_priority: Optional[SLAPriority] = None
+    sla_tracker: Optional[SLATracker] = None
+    impact: Optional[Impact] = None
+    parent_epic_key: Optional[str] = None
     needs_mapping_review: bool = False
 
 
-@dataclass(frozen=True)
-class AgencyMapping:
-    """Mapping rule for a single agency/jurisdiction/tax_type combination."""
+# ---------------------------------------------------------------------------
+# Period parsing
+# ---------------------------------------------------------------------------
 
-    jurisdiction_pattern: re.Pattern[str]
-    tax_type_pattern: re.Pattern[str]
-    state_label: str
-    jurisdiction_label: str
-    tax_type_label: str
-    parent_epic_key: str
-    issue_category_labels: list[str] = field(default_factory=list)
+_QUARTER_RE = re.compile(
+    r"(?:(\d)[Qq]\s*(\d{4}))|(?:[Qq](\d)\s*(\d{4}))", re.IGNORECASE,
+)
+_YEAR_RE = re.compile(r"\b(202[4-9])\b")
 
 
-AGENCY_MAPPINGS: list[AgencyMapping] = [
-    AgencyMapping(
-        jurisdiction_pattern=re.compile(r"pittsburgh", re.IGNORECASE),
-        tax_type_pattern=re.compile(r"EIT|earned\s+income", re.IGNORECASE),
-        state_label="pa-local",
-        jurisdiction_label="pittsburgh",
-        tax_type_label="eit",
-        parent_epic_key="FILING-101",
-        issue_category_labels=["payroll-expense-tax"],
-    ),
-    AgencyMapping(
-        jurisdiction_pattern=re.compile(r"pittsburgh", re.IGNORECASE),
-        tax_type_pattern=re.compile(r"LST|local\s+services", re.IGNORECASE),
-        state_label="pa-local",
-        jurisdiction_label="pittsburgh",
-        tax_type_label="lst",
-        parent_epic_key="FILING-101",
-    ),
-    AgencyMapping(
-        jurisdiction_pattern=re.compile(r"philadelphia", re.IGNORECASE),
-        tax_type_pattern=re.compile(r"BIRT|business\s+income", re.IGNORECASE),
-        state_label="pa-local",
-        jurisdiction_label="philadelphia",
-        tax_type_label="birt",
-        parent_epic_key="FILING-102",
-    ),
-    AgencyMapping(
-        jurisdiction_pattern=re.compile(r"philadelphia", re.IGNORECASE),
-        tax_type_pattern=re.compile(r"EIT|earned\s+income|wage", re.IGNORECASE),
-        state_label="pa-local",
-        jurisdiction_label="philadelphia",
-        tax_type_label="eit",
-        parent_epic_key="FILING-102",
-    ),
-    AgencyMapping(
-        jurisdiction_pattern=re.compile(r"california|CA\b", re.IGNORECASE),
-        tax_type_pattern=re.compile(r"SUI|state\s+unemployment", re.IGNORECASE),
-        state_label="ca-state",
-        jurisdiction_label="california",
-        tax_type_label="sui",
-        parent_epic_key="FILING-200",
-    ),
-    AgencyMapping(
-        jurisdiction_pattern=re.compile(r"new\s*york|NYC|NY\b", re.IGNORECASE),
-        tax_type_pattern=re.compile(r"PIT|personal\s+income", re.IGNORECASE),
-        state_label="ny-state",
-        jurisdiction_label="new-york",
-        tax_type_label="pit",
-        parent_epic_key="FILING-300",
-    ),
-]
-
-FILING_CODE_PATTERNS: dict[re.Pattern[str], dict[str, str]] = {
-    re.compile(r"PALOCALTREASURER.*PITTSBURGH.*PAYEXP", re.IGNORECASE): {
-        "jurisdiction": "City of Pittsburgh",
-        "tax_type": "EIT",
-        "agency": "PA Local Treasurer - City of Pittsburgh",
-    },
-    re.compile(r"PALOCALTREASURER.*PITTSBURGH.*LST", re.IGNORECASE): {
-        "jurisdiction": "City of Pittsburgh",
-        "tax_type": "LST",
-        "agency": "PA Local Treasurer - City of Pittsburgh",
-    },
-    re.compile(r"PHILA.*BIRT", re.IGNORECASE): {
-        "jurisdiction": "City of Philadelphia",
-        "tax_type": "BIRT",
-        "agency": "City of Philadelphia Revenue",
-    },
-}
+def parse_period(raw: str | None) -> tuple[int | None, int | None]:
+    """Extract (quarter 1-4, four-digit year) from free-text period string."""
+    if not raw:
+        return None, None
+    m = _QUARTER_RE.search(raw)
+    if m:
+        q = int(m.group(1) or m.group(3))
+        y = int(m.group(2) or m.group(4))
+        return q, y
+    ym = _YEAR_RE.search(raw)
+    if ym:
+        return None, int(ym.group(1))
+    return None, None
 
 
-def _classify_issue_type(
-    *,
-    tax_type: str | None,
-    jurisdiction: str | None,
-    description: str,
-) -> IssueType:
-    """Classify issue type based on content signals.
+def quarter_to_filing_period(q: int | None) -> FilingPeriod | None:
+    return {1: FilingPeriod.Q1, 2: FilingPeriod.Q2,
+            3: FilingPeriod.Q3, 4: FilingPeriod.Q4}.get(q)  # type: ignore[arg-type]
 
-    Blocker is checked first because incorrect form output, data mismatches,
-    and wrong tax years block filing even when they affect multiple clients.
-    Incident is reserved for explicitly systemic / production-wide failures
-    that go beyond a single form or filing code issue.
-    """
+
+def year_to_filing_year(y: int | None) -> FilingYear | None:
+    return {2025: FilingYear.Y2025, 2026: FilingYear.Y2026,
+            2027: FilingYear.Y2027}.get(y)  # type: ignore[arg-type]
+
+
+def build_blocker_label(quarter: int | None, year: int | None) -> str | None:
+    """Build the period-aware blocker label: Q126-filing-blocker, Q226-filing-blocker, etc."""
+    if quarter is None or year is None:
+        return None
+    short_year = year % 100
+    return f"Q{quarter}{short_year}-filing-blocker"
+
+
+def build_retro_label(quarter: int | None, year: int | None) -> str | None:
+    if quarter is None or year is None:
+        return None
+    short_year = year % 100
+    return f"q{quarter}{short_year}-retro-item"
+
+
+# ---------------------------------------------------------------------------
+# Impact inference
+# ---------------------------------------------------------------------------
+
+def infer_impact(description: str, impact_hint: str | None) -> Impact | None:
+    """Infer Impact from the LLM hint or description signals."""
+    if impact_hint:
+        hint_lower = impact_hint.lower().strip()
+        if "all" in hint_lower:
+            return Impact.ALL_CLIENTS
+        if "multiple" in hint_lower:
+            return Impact.MULTIPLE_CLIENTS
+        if "single" in hint_lower:
+            return Impact.SINGLE_CLIENT
+
+    desc_lower = description.lower()
+    if re.search(r"all\s+clients?\s+(are\s+)?show", desc_lower):
+        return Impact.ALL_CLIENTS
+    if re.search(r"multiple\s+clients?", desc_lower):
+        return Impact.MULTIPLE_CLIENTS
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Issue type classification
+# ---------------------------------------------------------------------------
+
+def classify_issue_type(description: str) -> IssueType:
+    """Classify issue type from description content signals."""
     desc_lower = description.lower()
 
     blocker_signals = [
@@ -131,7 +131,7 @@ def _classify_issue_type(
         r"showing\s+.{0,30}\s+instead\s+of",
         r"needs?\s+to\s+be\s+changed",
         r"may\s+need\s+to\s+be\s+changed",
-        r"missing\s+(account|id|number)",
+        r"missing\s+(account|id|number|ssn|ee|employee)",
         r"reject",
         r"cannot\s+(safely\s+)?proceed",
         r"deadline",
@@ -139,41 +139,26 @@ def _classify_issue_type(
         r"et-\d{4}",
         r"form\s+(output|generation|display)",
         r"all\s+clients?\s+(are\s+)?show",
+        r"negative\s+(taxable\s+)?wages",
+        r"file\s+(regeneration|error)",
+        r"\$0\s*filing",
+        r"wage\s+discrepanc",
     ]
     for sig in blocker_signals:
         if re.search(sig, desc_lower):
             return IssueType.BLOCKER
-
-    incident_signals = [
-        r"multi.?client\s+(production\s+)?fail",
-        r"systemic\s+(failure|issue|outage|error)",
-        r"production\s+(failure|outage|incident)",
-        r"widespread\s+(failure|outage|issue)",
-        r"platform.wide",
-        r"all\s+(filings?|payments?)\s+(fail|reject|error)",
-    ]
-    for sig in incident_signals:
-        if re.search(sig, desc_lower):
-            return IssueType.INCIDENT
 
     exception_signals = [
         r"after\s+submission",
         r"amendment",
         r"follow.?up",
         r"already\s+(filed|submitted)",
+        r"filing\s+exception",
+        r"exclusion",
     ]
     for sig in exception_signals:
         if re.search(sig, desc_lower):
             return IssueType.FILING_EXCEPTION
-
-    improvement_signals = [
-        r"\bsop\b",
-        r"workflow\s+(enhancement|improvement)",
-        r"operational\s+process",
-    ]
-    for sig in improvement_signals:
-        if re.search(sig, desc_lower):
-            return IssueType.PROCESS_IMPROVEMENT
 
     feature_signals = [
         r"enhancement",
@@ -188,125 +173,80 @@ def _classify_issue_type(
     return IssueType.BLOCKER
 
 
-def _classify_priority(issue_type: IssueType) -> IssuePriority:
-    """Derive priority from issue type."""
-    return {
-        IssueType.BLOCKER: IssuePriority.HIGHEST,
-        IssueType.INCIDENT: IssuePriority.HIGHEST,
-        IssueType.FILING_EXCEPTION: IssuePriority.HIGH,
-        IssueType.FEATURE_REQUEST: IssuePriority.LOW,
-        IssueType.PROCESS_IMPROVEMENT: IssuePriority.LOW,
-    }[issue_type]
+# ---------------------------------------------------------------------------
+# SLA inference
+# ---------------------------------------------------------------------------
 
-
-def _normalize_period_label(period: str | None) -> str | None:
-    """Normalize tax period to label format: 1Q2026 -> q1-2026."""
-    if not period:
+def infer_sla_priority(issue_type: IssueType, impact: Impact | None) -> SLAPriority | None:
+    """Default SLA Priority based on issue type and impact."""
+    if issue_type != IssueType.BLOCKER:
         return None
-    m = re.match(r"(\d)Q\s*(\d{4})", period, re.IGNORECASE)
-    if m:
-        return f"q{m.group(1)}-{m.group(2)}"
-    m = re.match(r"Q(\d)\s*(\d{4})", period, re.IGNORECASE)
-    if m:
-        return f"q{m.group(1)}-{m.group(2)}"
-    m = re.match(r"FY\s*(\d{4})", period, re.IGNORECASE)
-    if m:
-        return f"fy-{m.group(1)}"
-    m = re.match(r"(\d{4})", period)
-    if m:
-        return m.group(1)
-    return period.lower().replace(" ", "-")
+    if impact == Impact.ALL_CLIENTS:
+        return SLAPriority.P0_CRITICAL
+    if impact == Impact.MULTIPLE_CLIENTS:
+        return SLAPriority.P1_URGENT
+    return SLAPriority.P1_URGENT
 
 
-def resolve_filing_code(code: str) -> dict[str, str] | None:
-    """Try to resolve a filing code string to agency metadata."""
-    for pattern, metadata in FILING_CODE_PATTERNS.items():
-        if pattern.search(code):
-            return metadata
-    return None
+def infer_sla_tracker(sla_priority: SLAPriority | None) -> SLATracker | None:
+    if sla_priority is None:
+        return None
+    return {
+        SLAPriority.P0_CRITICAL: SLATracker.SAME_DAY,
+        SLAPriority.P1_URGENT: SLATracker.ONE_DAY,
+        SLAPriority.P2_HIGH: SLATracker.TWO_DAY,
+        SLAPriority.P3_MEDIUM: SLATracker.THREE_DAY,
+        SLAPriority.RETRO: SLATracker.FOR_RETRO,
+    }.get(sla_priority)
 
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
 
 def apply_mapping(
     *,
-    jurisdiction: str | None,
-    tax_type: str | None,
-    tax_period: str | None,
-    agency: str | None,
-    filing_code: str | None,
     description: str,
+    tax_period: str | None = None,
+    impact_hint: str | None = None,
 ) -> MappingResult:
-    """Apply deterministic rules to produce issue_type, priority, epic, labels."""
-    if filing_code:
-        resolved = resolve_filing_code(filing_code)
-        if resolved:
-            jurisdiction = jurisdiction or resolved.get("jurisdiction")
-            tax_type = tax_type or resolved.get("tax_type")
-            agency = agency or resolved.get("agency")
+    """Apply deterministic rules to produce Jira-ready fields from extracted metadata."""
 
-    for mapping in AGENCY_MAPPINGS:
-        j_match = jurisdiction and mapping.jurisdiction_pattern.search(jurisdiction)
-        t_match = tax_type and mapping.tax_type_pattern.search(tax_type)
-        if j_match and t_match:
-            issue_type = _classify_issue_type(
-                tax_type=tax_type,
-                jurisdiction=jurisdiction,
-                description=description,
-            )
-            priority = _classify_priority(issue_type)
+    quarter, year = parse_period(tax_period)
+    issue_type = classify_issue_type(description)
 
-            labels = [
-                mapping.jurisdiction_label,
-                mapping.state_label,
-                mapping.tax_type_label,
-            ]
-            labels.extend(mapping.issue_category_labels)
+    filing_period = quarter_to_filing_period(quarter)
+    filing_year = year_to_filing_year(year)
+    filing_frequency = FilingFrequency.QUARTERLY if quarter else None
 
-            period_label = _normalize_period_label(tax_period)
-            if period_label:
-                labels.append(period_label)
-
-            if issue_type == IssueType.BLOCKER:
-                labels.append("filing-blocker")
-            elif issue_type == IssueType.INCIDENT:
-                labels.append("incident")
-
-            desc_lower = description.lower()
-            if re.search(r"form\s+(output|generation|display|showing)", desc_lower):
-                labels.append("form-output")
-            if re.search(r"peo|professional\s+employer", desc_lower):
-                labels.append("form-output")
-
-            return MappingResult(
-                issue_type=issue_type,
-                priority=priority,
-                parent_epic_key=mapping.parent_epic_key,
-                labels=sorted(set(labels)),
-            )
-
-    issue_type = _classify_issue_type(
-        tax_type=tax_type,
-        jurisdiction=jurisdiction,
-        description=description,
-    )
-    priority = _classify_priority(issue_type)
+    impact = infer_impact(description, impact_hint)
+    sla_priority = infer_sla_priority(issue_type, impact)
+    sla_tracker = infer_sla_tracker(sla_priority)
 
     labels: list[str] = []
-    if jurisdiction:
-        labels.append(jurisdiction.lower().replace(" ", "-").replace(".", ""))
-    if tax_type:
-        labels.append(tax_type.lower())
-    period_label = _normalize_period_label(tax_period)
-    if period_label:
-        labels.append(period_label)
     if issue_type == IssueType.BLOCKER:
-        labels.append("filing-blocker")
-    elif issue_type == IssueType.INCIDENT:
-        labels.append("incident")
+        blocker_label = build_blocker_label(quarter, year)
+        if blocker_label:
+            labels.append(blocker_label)
+    elif issue_type == IssueType.FILING_EXCEPTION:
+        exclusion_label = (
+            f"q{quarter}{year % 100}-exclusions"
+            if quarter and year else None
+        )
+        if exclusion_label:
+            labels.append(exclusion_label)
+
+    needs_review = filing_period is None or filing_year is None
 
     return MappingResult(
         issue_type=issue_type,
-        priority=priority,
+        labels=sorted(labels),
+        filing_period=filing_period,
+        year=filing_year,
+        filing_frequency=filing_frequency,
+        sla_priority=sla_priority,
+        sla_tracker=sla_tracker,
+        impact=impact,
         parent_epic_key=None,
-        labels=sorted(set(labels)),
-        needs_mapping_review=True,
+        needs_mapping_review=needs_review,
     )

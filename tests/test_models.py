@@ -1,4 +1,4 @@
-"""Tests for FilingIssueDraft, LLMExtraction, and related models."""
+"""Tests for FILING project models — validates enums match live Jira schema."""
 
 from __future__ import annotations
 
@@ -7,65 +7,120 @@ import json
 import pytest
 
 from tax_ops_filing_bot.models.filing import (
+    FILING_PERIOD_IDS,
+    IMPACT_IDS,
+    ISSUE_TYPE_JIRA_IDS,
+    SLA_PRIORITY_IDS,
+    FilingFrequency,
     FilingIssueDraft,
-    IssuePriority,
+    FilingPeriod,
+    FilingYear,
+    Impact,
     IssueType,
     LLMExtraction,
+    SLAPriority,
+    SLATracker,
     ThreadMessage,
 )
 
 
+class TestIssueType:
+    """Issue types must match the real FILING project — no generic software types."""
+
+    def test_blocker_exists(self) -> None:
+        assert IssueType.BLOCKER.value == "Blocker"
+
+    def test_filing_exception_exists(self) -> None:
+        assert IssueType.FILING_EXCEPTION.value == "Filing Exception"
+
+    def test_feature_request_exists(self) -> None:
+        assert IssueType.FEATURE_REQUEST.value == "Feature Request"
+
+    def test_quarterly_exists(self) -> None:
+        assert IssueType.QUARTERLY.value == "Quarterly"
+
+    def test_monthly_exists(self) -> None:
+        assert IssueType.MONTHLY.value == "Monthly"
+
+    def test_retro_exists(self) -> None:
+        assert IssueType.RETRO.value == "Retro"
+
+    def test_no_bug_type(self) -> None:
+        assert "Bug" not in {t.value for t in IssueType}
+
+    def test_no_task_type(self) -> None:
+        assert "Task" not in {t.value for t in IssueType}
+
+    def test_no_story_type(self) -> None:
+        assert "Story" not in {t.value for t in IssueType}
+
+    def test_no_incident_type(self) -> None:
+        assert "Incident" not in {t.value for t in IssueType}
+
+    def test_no_process_improvement_type(self) -> None:
+        assert "Process Improvement" not in {t.value for t in IssueType}
+
+    def test_all_have_jira_ids(self) -> None:
+        for t in IssueType:
+            assert t in ISSUE_TYPE_JIRA_IDS, f"{t} missing Jira ID"
+
+    def test_blocker_jira_id(self) -> None:
+        assert ISSUE_TYPE_JIRA_IDS[IssueType.BLOCKER] == "20302"
+
+
+class TestSLAPriority:
+    def test_values(self) -> None:
+        assert SLAPriority.P0_CRITICAL.value == "P0 - Critical"
+        assert SLAPriority.P1_URGENT.value == "P1 - Urgent"
+        assert SLAPriority.P2_HIGH.value == "P2 - High"
+        assert SLAPriority.P3_MEDIUM.value == "P3 - Medium"
+        assert SLAPriority.RETRO.value == "Retro"
+
+    def test_all_have_jira_ids(self) -> None:
+        for p in SLAPriority:
+            assert p in SLA_PRIORITY_IDS
+
+
+class TestImpact:
+    def test_values(self) -> None:
+        assert Impact.ALL_CLIENTS.value == "All Clients"
+        assert Impact.MULTIPLE_CLIENTS.value == "Multiple Clients"
+        assert Impact.SINGLE_CLIENT.value == "Single Client"
+
+    def test_all_have_jira_ids(self) -> None:
+        for i in Impact:
+            assert i in IMPACT_IDS
+
+
+class TestFilingPeriod:
+    def test_quarter_values(self) -> None:
+        assert FilingPeriod.Q1.value == "Q1"
+        assert FilingPeriod.Q2.value == "Q2"
+        assert FilingPeriod.Q3.value == "Q3"
+        assert FilingPeriod.Q4.value == "Q4"
+
+    def test_all_have_jira_ids(self) -> None:
+        for fp in FilingPeriod:
+            assert fp in FILING_PERIOD_IDS
+
+
 class TestThreadMessage:
     def test_create(self) -> None:
-        msg = ThreadMessage(author="Alice", timestamp="2026-01-01T00:00:00", text="hello")
+        msg = ThreadMessage(author="Alice", timestamp="2026-01-01", text="hello")
         assert msg.author == "Alice"
-        assert msg.text == "hello"
         assert msg.is_bot is False
-
-    def test_from_dict(self) -> None:
-        data = {"author": "Bob", "timestamp": "2026-01-01", "text": "test"}
-        msg = ThreadMessage.model_validate(data)
-        assert msg.author == "Bob"
 
     def test_bot_flag(self) -> None:
         msg = ThreadMessage(author="bot", timestamp="now", text="hi", is_bot=True)
         assert msg.is_bot is True
 
 
-class TestIssueType:
-    def test_blocker(self) -> None:
-        assert IssueType.BLOCKER.value == "Blocker"
-
-    def test_filing_exception(self) -> None:
-        assert IssueType.FILING_EXCEPTION.value == "Filing Exception"
-
-    def test_incident(self) -> None:
-        assert IssueType.INCIDENT.value == "Incident"
-
-    def test_feature_request(self) -> None:
-        assert IssueType.FEATURE_REQUEST.value == "Feature Request"
-
-    def test_process_improvement(self) -> None:
-        assert IssueType.PROCESS_IMPROVEMENT.value == "Process Improvement"
-
-    def test_no_bug_type(self) -> None:
-        values = {t.value for t in IssueType}
-        assert "Bug" not in values
-
-    def test_no_task_type(self) -> None:
-        values = {t.value for t in IssueType}
-        assert "Task" not in values
-
-    def test_no_story_type(self) -> None:
-        values = {t.value for t in IssueType}
-        assert "Story" not in values
-
-
 class TestLLMExtraction:
     def test_minimal(self) -> None:
         ext = LLMExtraction(summary="Test", description="Desc")
         assert ext.confidence == 0.0
-        assert ext.jurisdiction is None
+        assert ext.state is None
+        assert ext.impact_scope is None
 
     def test_full(self) -> None:
         ext = LLMExtraction(
@@ -73,73 +128,60 @@ class TestLLMExtraction:
             description="Tax year mismatch",
             confidence=0.9,
             jurisdiction="City of Pittsburgh",
+            state="PA",
             tax_type="EIT",
             tax_period="1Q2026",
-            agency="PA Local Treasurer",
             filing_code="PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE",
-            client_or_entity="Rippling PEO 1, Inc.",
-            reporter="Tony",
+            ff_client_id="12345",
+            impact_scope="all clients",
         )
-        assert ext.tax_type == "EIT"
-        assert ext.filing_code is not None
+        assert ext.state == "PA"
+        assert ext.ff_client_id == "12345"
 
 
 class TestFilingIssueDraft:
     def test_minimal_draft(self) -> None:
-        draft = FilingIssueDraft(
-            summary="Test issue",
-            description="Some description",
-        )
+        draft = FilingIssueDraft(summary="Test", description="Desc")
         assert draft.issue_type == IssueType.BLOCKER
-        assert draft.priority == IssuePriority.MEDIUM
         assert draft.labels == []
-        assert draft.jurisdiction is None
+        assert draft.filing_period is None
+        assert draft.sla_priority is None
+        assert draft.impact is None
         assert draft.needs_mapping_review is False
-        assert draft.parent_epic_key is None
 
-    def test_full_draft(self) -> None:
+    def test_full_blocker_draft(self) -> None:
         draft = FilingIssueDraft(
             summary="Pittsburgh EIT issue",
             description="Tax year mismatch",
             issue_type=IssueType.BLOCKER,
-            priority=IssuePriority.HIGHEST,
-            labels=["pittsburgh", "pa-local", "eit", "filing-blocker"],
-            parent_epic_key="FILING-101",
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period="1Q2026",
-            needs_mapping_review=False,
-            confidence=0.9,
+            labels=["Q126-filing-blocker"],
+            filing_period=FilingPeriod.Q1,
+            year=FilingYear.Y2026,
+            sla_priority=SLAPriority.P0_CRITICAL,
+            sla_tracker=SLATracker.SAME_DAY,
+            filing_frequency=FilingFrequency.QUARTERLY,
+            ff_client_id="12345",
+            impact=Impact.ALL_CLIENTS,
+            state="PA",
         )
-        assert draft.issue_type == IssueType.BLOCKER
-        assert draft.priority == IssuePriority.HIGHEST
-        assert "pittsburgh" in draft.labels
-        assert draft.parent_epic_key == "FILING-101"
-        assert draft.needs_mapping_review is False
+        assert draft.sla_priority == SLAPriority.P0_CRITICAL
+        assert draft.filing_period == FilingPeriod.Q1
+        assert draft.year == FilingYear.Y2026
+        assert draft.impact == Impact.ALL_CLIENTS
 
     def test_roundtrip_json(self) -> None:
         draft = FilingIssueDraft(
             summary="Test",
             description="Desc",
-            labels=["a", "b"],
+            labels=["Q126-filing-blocker"],
+            filing_period=FilingPeriod.Q1,
+            year=FilingYear.Y2026,
         )
         data = json.loads(draft.model_dump_json())
         restored = FilingIssueDraft.model_validate(data)
-        assert restored.summary == "Test"
-        assert restored.labels == ["a", "b"]
+        assert restored.filing_period == FilingPeriod.Q1
+        assert restored.labels == ["Q126-filing-blocker"]
 
     def test_summary_max_length(self) -> None:
         with pytest.raises(Exception):
-            FilingIssueDraft(
-                summary="x" * 256,
-                description="too long summary",
-            )
-
-    def test_needs_mapping_review_field(self) -> None:
-        draft = FilingIssueDraft(
-            summary="Unknown agency issue",
-            description="Desc",
-            needs_mapping_review=True,
-        )
-        assert draft.needs_mapping_review is True
-        assert draft.parent_epic_key is None
+            FilingIssueDraft(summary="x" * 256, description="too long")

@@ -1,290 +1,231 @@
-"""Tests for the deterministic mapping layer (requirements F.2-F.5)."""
+"""Tests for the deterministic mapping layer — based on real FILING project data."""
 
 from __future__ import annotations
 
-from tax_ops_filing_bot.models.filing import IssuePriority, IssueType
+from tax_ops_filing_bot.models.filing import (
+    FilingFrequency,
+    FilingPeriod,
+    FilingYear,
+    Impact,
+    IssueType,
+    SLAPriority,
+    SLATracker,
+)
 from tax_ops_filing_bot.services.mapping import (
-    MappingResult,
     apply_mapping,
-    resolve_filing_code,
+    build_blocker_label,
+    build_retro_label,
+    classify_issue_type,
+    infer_impact,
+    parse_period,
 )
 
 
-class TestResoveFilingCode:
-    def test_pittsburgh_payexp(self) -> None:
-        result = resolve_filing_code("PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE")
-        assert result is not None
-        assert result["jurisdiction"] == "City of Pittsburgh"
-        assert result["tax_type"] == "EIT"
+class TestParsePeriod:
+    def test_1q2026(self) -> None:
+        assert parse_period("1Q2026") == (1, 2026)
 
-    def test_unknown_code(self) -> None:
-        result = resolve_filing_code("UNKNOWNAGENCYFILE")
-        assert result is None
+    def test_q1_2026(self) -> None:
+        assert parse_period("Q1 2026") == (1, 2026)
+
+    def test_q2_2026(self) -> None:
+        assert parse_period("Q2 2026") == (2, 2026)
+
+    def test_bare_year(self) -> None:
+        assert parse_period("2026") == (None, 2026)
+
+    def test_none(self) -> None:
+        assert parse_period(None) == (None, None)
+
+
+class TestBuildBlockerLabel:
+    """Blocker labels follow Q{quarter}{2-digit-year}-filing-blocker convention."""
+
+    def test_q1_2026(self) -> None:
+        assert build_blocker_label(1, 2026) == "Q126-filing-blocker"
+
+    def test_q2_2026(self) -> None:
+        assert build_blocker_label(2, 2026) == "Q226-filing-blocker"
+
+    def test_q3_2025(self) -> None:
+        assert build_blocker_label(3, 2025) == "Q325-filing-blocker"
+
+    def test_q4_2027(self) -> None:
+        assert build_blocker_label(4, 2027) == "Q427-filing-blocker"
+
+    def test_none_quarter(self) -> None:
+        assert build_blocker_label(None, 2026) is None
+
+    def test_none_year(self) -> None:
+        assert build_blocker_label(1, None) is None
+
+
+class TestBuildRetroLabel:
+    def test_q1_2026(self) -> None:
+        assert build_retro_label(1, 2026) == "q126-retro-item"
+
+    def test_q2_2026(self) -> None:
+        assert build_retro_label(2, 2026) == "q226-retro-item"
+
+
+class TestClassifyIssueType:
+    def test_blocker_tax_year_mismatch(self) -> None:
+        assert classify_issue_type(
+            "Tax year shows ET-2025 instead of ET-2026"
+        ) == IssueType.BLOCKER
+
+    def test_blocker_peo_name(self) -> None:
+        assert classify_issue_type(
+            "All clients are showing PEO company name incorrectly"
+        ) == IssueType.BLOCKER
+
+    def test_blocker_missing_ssn(self) -> None:
+        assert classify_issue_type(
+            "Missing SSN and invalid employee name"
+        ) == IssueType.BLOCKER
+
+    def test_blocker_negative_wages(self) -> None:
+        assert classify_issue_type(
+            "Negative taxable wages in file"
+        ) == IssueType.BLOCKER
+
+    def test_blocker_file_regen(self) -> None:
+        assert classify_issue_type(
+            "File regeneration issue with $0 filings"
+        ) == IssueType.BLOCKER
+
+    def test_filing_exception(self) -> None:
+        assert classify_issue_type(
+            "Filing exception request for client exclusion"
+        ) == IssueType.FILING_EXCEPTION
+
+    def test_feature_request(self) -> None:
+        assert classify_issue_type(
+            "Enhancement request for a new report format"
+        ) == IssueType.FEATURE_REQUEST
+
+    def test_default_is_blocker(self) -> None:
+        assert classify_issue_type(
+            "Something is wrong with the filing"
+        ) == IssueType.BLOCKER
+
+
+class TestInferImpact:
+    def test_all_clients_from_hint(self) -> None:
+        assert infer_impact("desc", "all clients") == Impact.ALL_CLIENTS
+
+    def test_multiple_from_hint(self) -> None:
+        assert infer_impact("desc", "multiple clients") == Impact.MULTIPLE_CLIENTS
+
+    def test_single_from_hint(self) -> None:
+        assert infer_impact("desc", "single client") == Impact.SINGLE_CLIENT
+
+    def test_all_clients_from_description(self) -> None:
+        assert infer_impact(
+            "All clients are showing Rippling PEO", None
+        ) == Impact.ALL_CLIENTS
+
+    def test_none_when_unknown(self) -> None:
+        assert infer_impact("some issue", None) is None
 
 
 class TestApplyMappingPittsburghEIT:
-    """Pittsburgh EIT must be classified as Blocker with correct epic and labels (F.2-F.4)."""
+    """Pittsburgh EIT Q1 2026 blocker — matches real FILING-5967."""
 
-    def _get_pittsburgh_eit_result(self) -> MappingResult:
+    def _get_result(self):
         return apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period="1Q2026",
-            agency="PA Local Treasurer - City of Pittsburgh",
-            filing_code="PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE",
             description=(
                 "Tax year at top of return displays ET-2025 but should read "
                 "ET-2026. All clients are showing Rippling PEO 1, Inc. as "
                 "Company Name of Professional Employer Organization."
             ),
+            tax_period="1Q2026",
+            impact_hint="all clients",
         )
 
     def test_issue_type_is_blocker(self) -> None:
-        """F.2: Pittsburgh EIT is classified as Blocker."""
-        result = self._get_pittsburgh_eit_result()
-        assert result.issue_type == IssueType.BLOCKER
+        assert self._get_result().issue_type == IssueType.BLOCKER
 
-    def test_priority_is_highest(self) -> None:
-        result = self._get_pittsburgh_eit_result()
-        assert result.priority == IssuePriority.HIGHEST
+    def test_filing_period_q1(self) -> None:
+        assert self._get_result().filing_period == FilingPeriod.Q1
 
-    def test_parent_epic_from_mapping(self) -> None:
-        """F.3: Parent epic is selected from the mapping layer."""
-        result = self._get_pittsburgh_eit_result()
-        assert result.parent_epic_key == "FILING-101"
+    def test_year_2026(self) -> None:
+        assert self._get_result().year == FilingYear.Y2026
 
-    def test_labels_include_jurisdiction(self) -> None:
-        """F.4: Labels include jurisdiction."""
-        result = self._get_pittsburgh_eit_result()
-        assert "pittsburgh" in result.labels
+    def test_filing_frequency_quarterly(self) -> None:
+        assert self._get_result().filing_frequency == FilingFrequency.QUARTERLY
 
-    def test_labels_include_state_label(self) -> None:
-        """F.4: Labels include state/local designation."""
-        result = self._get_pittsburgh_eit_result()
-        assert "pa-local" in result.labels
+    def test_impact_all_clients(self) -> None:
+        assert self._get_result().impact == Impact.ALL_CLIENTS
 
-    def test_labels_include_tax_type(self) -> None:
-        """F.4: Labels include tax type."""
-        result = self._get_pittsburgh_eit_result()
-        assert "eit" in result.labels
+    def test_sla_priority_p0(self) -> None:
+        assert self._get_result().sla_priority == SLAPriority.P0_CRITICAL
 
-    def test_labels_include_period(self) -> None:
-        """F.4: Labels include filing period."""
-        result = self._get_pittsburgh_eit_result()
-        assert "q1-2026" in result.labels
+    def test_sla_tracker_same_day(self) -> None:
+        assert self._get_result().sla_tracker == SLATracker.SAME_DAY
 
-    def test_labels_include_blocker_designation(self) -> None:
-        """F.4: Labels include blocker designation."""
-        result = self._get_pittsburgh_eit_result()
-        assert "filing-blocker" in result.labels
+    def test_label_q126_filing_blocker(self) -> None:
+        result = self._get_result()
+        assert "Q126-filing-blocker" in result.labels
 
-    def test_labels_include_form_output(self) -> None:
-        """F.4: Labels include form-output for PEO / form display issues."""
-        result = self._get_pittsburgh_eit_result()
-        assert "form-output" in result.labels
-
-    def test_labels_include_payroll_expense_tax(self) -> None:
-        """F.4: Labels include issue category from mapping."""
-        result = self._get_pittsburgh_eit_result()
-        assert "payroll-expense-tax" in result.labels
-
-    def test_needs_mapping_review_false(self) -> None:
-        result = self._get_pittsburgh_eit_result()
-        assert result.needs_mapping_review is False
+    def test_no_needs_mapping_review(self) -> None:
+        assert self._get_result().needs_mapping_review is False
 
 
-class TestApplyMappingFromFilingCode:
-    """Filing code should be resolved to populate missing metadata."""
+class TestApplyMappingQ2:
+    """Q2 2026 blocker should produce Q226-filing-blocker label."""
 
-    def test_filing_code_resolves_jurisdiction(self) -> None:
+    def test_q2_label(self) -> None:
         result = apply_mapping(
-            jurisdiction=None,
-            tax_type=None,
-            tax_period="1Q2026",
-            agency=None,
-            filing_code="PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE",
-            description="Tax year showing ET-2025 instead of ET-2026",
+            description="Wage discrepancies in bulk file for Q2",
+            tax_period="Q2 2026",
         )
-        assert result.parent_epic_key == "FILING-101"
-        assert "pittsburgh" in result.labels
-        assert result.needs_mapping_review is False
+        assert "Q226-filing-blocker" in result.labels
 
-
-class TestApplyMappingUnmappedAgency:
-    """F.5: Unmapped agencies set needs_mapping_review = true."""
-
-    def test_unknown_jurisdiction(self) -> None:
+    def test_q2_filing_period(self) -> None:
         result = apply_mapping(
-            jurisdiction="City of Denver",
-            tax_type="OPT",
-            tax_period="2Q2026",
-            agency="Denver Revenue",
-            filing_code=None,
-            description="Occupational privilege tax amount is incorrect.",
+            description="Wage discrepancies in bulk file for Q2",
+            tax_period="Q2 2026",
         )
-        assert result.needs_mapping_review is True
-        assert result.parent_epic_key is None
+        assert result.filing_period == FilingPeriod.Q2
 
-    def test_unknown_jurisdiction_still_classifies(self) -> None:
+
+class TestApplyMappingFilingException:
+    def test_issue_type(self) -> None:
         result = apply_mapping(
-            jurisdiction="City of Denver",
-            tax_type="OPT",
-            tax_period="2Q2026",
-            agency="Denver Revenue",
-            filing_code=None,
-            description="Tax amount is incorrect, showing wrong period.",
-        )
-        assert result.issue_type in list(IssueType)
-        assert result.priority in list(IssuePriority)
-
-    def test_unknown_jurisdiction_has_basic_labels(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Denver",
-            tax_type="OPT",
-            tax_period="2Q2026",
-            agency="Denver Revenue",
-            filing_code=None,
-            description="Filing issue.",
-        )
-        assert "city-of-denver" in result.labels
-        assert "opt" in result.labels
-        assert "q2-2026" in result.labels
-
-    def test_completely_unknown(self) -> None:
-        result = apply_mapping(
-            jurisdiction=None,
-            tax_type=None,
-            tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Something is wrong with a filing.",
-        )
-        assert result.needs_mapping_review is True
-        assert result.parent_epic_key is None
-
-
-class TestClassificationRules:
-    """Test issue type classification from description signals."""
-
-    def test_blocker_data_mismatch(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Data mismatch: account number is wrong.",
-        )
-        assert result.issue_type == IssueType.BLOCKER
-
-    def test_blocker_wrong_year(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Form showing ET-2024 but should be ET-2025.",
-        )
-        assert result.issue_type == IssueType.BLOCKER
-
-    def test_blocker_missing_account(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Missing account number on the filing.",
-        )
-        assert result.issue_type == IssueType.BLOCKER
-
-    def test_incident_systemic_failure(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Systemic failure in the filing platform today.",
-        )
-        assert result.issue_type == IssueType.INCIDENT
-
-    def test_incident_production_outage(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Production outage affecting filing submissions.",
-        )
-        assert result.issue_type == IssueType.INCIDENT
-
-    def test_filing_exception_after_submission(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Issue found after submission, needs amendment.",
+            description="Filing exception request for client exclusion from Q1",
+            tax_period="Q1 2026",
         )
         assert result.issue_type == IssueType.FILING_EXCEPTION
 
-    def test_feature_request(self) -> None:
+    def test_exclusion_label(self) -> None:
         result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
+            description="Filing exclusion for client from quarterly filings",
+            tax_period="Q1 2026",
+        )
+        assert "q126-exclusions" in result.labels
+
+    def test_no_sla_for_exception(self) -> None:
+        result = apply_mapping(
+            description="Filing exception after submission, needs amendment",
+            tax_period="Q1 2026",
+        )
+        assert result.sla_priority is None
+
+
+class TestApplyMappingNoPeriod:
+    """Missing period should flag needs_mapping_review."""
+
+    def test_needs_review(self) -> None:
+        result = apply_mapping(
+            description="Something is wrong with a filing",
             tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="Enhancement request for a new report format.",
         )
-        assert result.issue_type == IssueType.FEATURE_REQUEST
+        assert result.needs_mapping_review is True
 
-    def test_process_improvement(self) -> None:
+    def test_no_blocker_label(self) -> None:
         result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
+            description="Something is wrong with a filing",
             tax_period=None,
-            agency=None,
-            filing_code=None,
-            description="SOP update needed for the review workflow.",
         )
-        assert result.issue_type == IssueType.PROCESS_IMPROVEMENT
-
-
-class TestPeriodNormalization:
-    def test_1q2026(self) -> None:
-        result = apply_mapping(
-            jurisdiction="City of Pittsburgh",
-            tax_type="EIT",
-            tax_period="1Q2026",
-            agency=None,
-            filing_code=None,
-            description="Tax year showing ET-2025 instead of 2026.",
-        )
-        assert "q1-2026" in result.labels
-
-    def test_fiscal_year(self) -> None:
-        result = apply_mapping(
-            jurisdiction="Unknown Place",
-            tax_type="ABC",
-            tax_period="FY2025",
-            agency=None,
-            filing_code=None,
-            description="Issue with filing.",
-        )
-        assert "fy-2025" in result.labels
-
-    def test_plain_year(self) -> None:
-        result = apply_mapping(
-            jurisdiction="Unknown Place",
-            tax_type="ABC",
-            tax_period="2026",
-            agency=None,
-            filing_code=None,
-            description="Issue with filing.",
-        )
-        assert "2026" in result.labels
+        assert not any("filing-blocker" in lbl for lbl in result.labels)

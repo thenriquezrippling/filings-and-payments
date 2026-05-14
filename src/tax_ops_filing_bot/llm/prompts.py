@@ -1,7 +1,7 @@
 """Prompt templates for the filing intake LLM pipeline.
 
 The LLM is responsible ONLY for extracting structured metadata from Slack thread
-text.  Issue classification, priority, labels, and parent epic assignment are
+text.  Issue classification, labels, SLA fields, and parent epic assignment are
 handled by the deterministic mapping layer — not the LLM.
 """
 
@@ -23,13 +23,18 @@ Return a JSON object with exactly these fields:
   and what needs clarification or action. Write for a Jira reader with no \
   Slack context. Use professional language.
 - confidence (float 0.0–1.0): Your confidence that the extraction is accurate.
-- jurisdiction (string|null): Tax jurisdiction (city, state, county).
-- tax_type (string|null): Tax type code (EIT, LST, BIRT, SUI, etc.).
-- tax_period (string|null): Filing period (e.g. 1Q2026, FY2025).
+- jurisdiction (string|null): Tax jurisdiction (city, state, or county name).
+- state (string|null): Two-letter state abbreviation (e.g. PA, NY, TX).
+- tax_type (string|null): Tax type code (EIT, LST, SUI, SWT, etc.).
+- tax_period (string|null): Filing period (e.g. 1Q2026, Q1 2026, April 2026).
 - agency (string|null): Filing agency name if identifiable.
-- filing_code (string|null): Filing code identifier if present in the thread.
+- filing_code (string|null): Filing code identifier if present in the thread \
+  (e.g. PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE, TXSUIFILE, IRS941FILE).
+- ff_client_id (string|null): FF Client ID(s) if mentioned (free text).
 - client_or_entity (string|null): Client or entity name if mentioned.
 - reporter (string|null): Slack user who raised the issue.
+- impact_scope (string|null): One of "all clients", "multiple clients", \
+  "single client", or null if not determinable.
 
 STRICT RULES:
 1. The description MUST contain ONLY operational filing issue content.

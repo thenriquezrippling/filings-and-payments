@@ -19,6 +19,10 @@ class TestBuildMessages:
         msgs = build_messages(channel="ch", thread_text="EIT Pittsburgh 1Q2026")
         assert "EIT Pittsburgh 1Q2026" in msgs[0]["content"]
 
+    def test_asks_for_llm_extraction_schema(self) -> None:
+        msgs = build_messages(channel="ch", thread_text="text")
+        assert "LLMExtraction" in msgs[0]["content"]
+
 
 class TestSystemPrompt:
     def test_mentions_filing_project(self) -> None:
@@ -26,3 +30,22 @@ class TestSystemPrompt:
 
     def test_mentions_json(self) -> None:
         assert "JSON" in SYSTEM_PROMPT
+
+    def test_prohibits_implementation_notes(self) -> None:
+        assert "tests pass" in SYSTEM_PROMPT
+        assert "lint is clean" in SYSTEM_PROMPT
+        assert "I implemented" in SYSTEM_PROMPT
+        assert "Phase X" in SYSTEM_PROMPT
+
+    def test_prohibits_cursor_claude_references(self) -> None:
+        assert "Cursor" in SYSTEM_PROMPT
+        assert "Claude" in SYSTEM_PROMPT
+
+    def test_does_not_assign_issue_type(self) -> None:
+        assert "do NOT assign issue type" in SYSTEM_PROMPT.lower() or \
+               "You do NOT assign issue type" in SYSTEM_PROMPT
+
+    def test_llm_only_extracts_metadata(self) -> None:
+        assert "summary" in SYSTEM_PROMPT
+        assert "description" in SYSTEM_PROMPT
+        assert "confidence" in SYSTEM_PROMPT

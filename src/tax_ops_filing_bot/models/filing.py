@@ -17,9 +17,11 @@ class IssuePriority(str, Enum):
 
 
 class IssueType(str, Enum):
-    BUG = "Bug"
-    TASK = "Task"
-    STORY = "Story"
+    BLOCKER = "Blocker"
+    FILING_EXCEPTION = "Filing Exception"
+    INCIDENT = "Incident"
+    FEATURE_REQUEST = "Feature Request"
+    PROCESS_IMPROVEMENT = "Process Improvement"
 
 
 class ThreadMessage(BaseModel):
@@ -28,10 +30,11 @@ class ThreadMessage(BaseModel):
     author: str
     timestamp: str
     text: str
+    is_bot: bool = False
 
 
-class FilingIssueDraft(BaseModel):
-    """Structured draft for a FILING Jira issue, inferred from a Slack thread."""
+class LLMExtraction(BaseModel):
+    """Raw output from the LLM — only fields the LLM is responsible for."""
 
     summary: str = Field(
         ...,
@@ -40,19 +43,13 @@ class FilingIssueDraft(BaseModel):
     )
     description: str = Field(
         ...,
-        description="Full issue description with context from the thread",
+        description="Operational issue description with filing context only",
     )
-    issue_type: IssueType = Field(
-        default=IssueType.TASK,
-        description="Jira issue type",
-    )
-    priority: IssuePriority = Field(
-        default=IssuePriority.MEDIUM,
-        description="Issue priority",
-    )
-    labels: list[str] = Field(
-        default_factory=list,
-        description="Jira labels (e.g. jurisdiction, tax type)",
+    confidence: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="LLM confidence in the extraction (0.0–1.0)",
     )
     jurisdiction: Optional[str] = Field(
         default=None,
@@ -65,6 +62,72 @@ class FilingIssueDraft(BaseModel):
     tax_period: Optional[str] = Field(
         default=None,
         description="Tax period or year if mentioned (e.g. 1Q2026, 2025)",
+    )
+    agency: Optional[str] = Field(
+        default=None,
+        description="Agency name or filing code prefix if identifiable",
+    )
+    filing_code: Optional[str] = Field(
+        default=None,
+        description="Filing code if identifiable (e.g. PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE)",
+    )
+    client_or_entity: Optional[str] = Field(
+        default=None,
+        description="Client or entity name if mentioned",
+    )
+    reporter: Optional[str] = Field(
+        default=None,
+        description="Slack user who initiated the thread",
+    )
+
+
+class FilingIssueDraft(BaseModel):
+    """Structured draft for a FILING Jira issue, after deterministic mapping."""
+
+    summary: str = Field(
+        ...,
+        description="Concise one-line summary for the Jira issue title",
+        max_length=255,
+    )
+    description: str = Field(
+        ...,
+        description="Full issue description — operational content only, no implementation notes",
+    )
+    issue_type: IssueType = Field(
+        default=IssueType.BLOCKER,
+        description="Tax Ops issue type",
+    )
+    priority: IssuePriority = Field(
+        default=IssuePriority.MEDIUM,
+        description="Issue priority",
+    )
+    labels: list[str] = Field(
+        default_factory=list,
+        description="Standardized labels from deterministic mapping",
+    )
+    parent_epic_key: Optional[str] = Field(
+        default=None,
+        description="FILING epic key from mapping layer (e.g. FILING-100)",
+    )
+    jurisdiction: Optional[str] = Field(
+        default=None,
+        description="Tax jurisdiction (city, state, county) if identifiable",
+    )
+    tax_type: Optional[str] = Field(
+        default=None,
+        description="Tax type (e.g. EIT, LST, BIRT, payroll-expense)",
+    )
+    tax_period: Optional[str] = Field(
+        default=None,
+        description="Tax period or year if mentioned (e.g. 1Q2026, 2025)",
+    )
+    agency: Optional[str] = Field(
+        default=None,
+        description="Filing agency",
+    )
+    filing_code: Optional[str] = Field(
+        default=None,
+        description="Filing code identifier",
     )
     client_or_entity: Optional[str] = Field(
         default=None,
@@ -81,4 +144,14 @@ class FilingIssueDraft(BaseModel):
     reporter: Optional[str] = Field(
         default=None,
         description="Slack user who initiated the thread",
+    )
+    confidence: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="LLM confidence in the extraction",
+    )
+    needs_mapping_review: bool = Field(
+        default=False,
+        description="True when no deterministic mapping exists for the agency/jurisdiction",
     )

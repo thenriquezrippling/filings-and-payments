@@ -17,9 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from tax_ops_filing_bot.llm.wrapper import AnthropicClient
 from tax_ops_filing_bot.models.filing import (
-    FilingIssueDraft,
-    IssuePriority,
-    IssueType,
+    LLMExtraction,
     ThreadMessage,
 )
 from tax_ops_filing_bot.services.intake import IntakeService
@@ -43,47 +41,49 @@ THREAD_MESSAGES = [
             "of Professional Employer Organization."
         ),
     ),
+    # Bot message — should be filtered out
+    ThreadMessage(
+        author="Claude",
+        timestamp="5/14/2026, 6:40:00 AM",
+        text="I implemented Phase 2 of the bot. All tests pass and lint is clean.",
+        is_bot=True,
+    ),
 ]
 
 CHANNEL = "personal-ai-testing"
 
 
 class MockLLMClient:
-    """Simulates LLM inference for the Pittsburgh EIT thread."""
+    """Simulates LLM extraction for the Pittsburgh EIT thread."""
 
     def complete_json(self, messages, response_model, *, system=None):
-        return FilingIssueDraft(
+        return LLMExtraction(
             summary=(
-                "Pittsburgh EIT 1Q2026: Tax year showing ET-2025 instead of 2026 "
-                "and PEO name defaulting to Rippling PEO 1, Inc."
+                "Pittsburgh EIT 1Q2026: Tax year displaying ET-2025 instead of "
+                "ET-2026 and PEO name defaulting to Rippling PEO 1, Inc."
             ),
             description=(
                 "During review of Pittsburgh EIT returns showing $0 balances "
                 "(PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE 1Q2026), two issues "
                 "were identified:\n\n"
-                "1. **Tax year mismatch**: The tax year at the top of the return "
-                "displays \"ET-2025\" but should likely read \"ET-2026\" for the "
+                "1. Tax year mismatch: The tax year at the top of the return "
+                "displays \"ET-2025\" but should read \"ET-2026\" for the "
                 "1Q2026 filing period.\n\n"
-                "2. **PEO company name on Payroll Expense Tax Allocation Schedule**: "
+                "2. PEO company name on Payroll Expense Tax Allocation Schedule: "
                 "The Payroll Expense Tax Allocation Schedule Form appears on the "
-                "second page. All clients are showing \"Rippling PEO 1, Inc.\" as "
-                "the Company Name of Professional Employer Organization. Need to "
-                "confirm:\n"
-                "   - Whether this form should be included in the filing\n"
-                "   - Whether the PEO company name is correct or needs to reflect "
-                "the actual client entity\n\n"
-                "Source: Slack thread from Tony in #personal-ai-testing "
-                "(5/14/2026, 6:37 AM)"
+                "second page of the return. All clients are showing "
+                "\"Rippling PEO 1, Inc.\" as the Company Name of Professional "
+                "Employer Organization. Confirmation needed on whether this form "
+                "should be included and whether the PEO company name is correct "
+                "or should reflect the actual client entity."
             ),
-            issue_type=IssueType.BUG,
-            priority=IssuePriority.HIGH,
-            labels=["pittsburgh", "EIT", "payroll-expense-tax", "PEO", "1Q2026"],
+            confidence=0.92,
             jurisdiction="City of Pittsburgh",
             tax_type="EIT",
             tax_period="1Q2026",
+            agency="PA Local Treasurer - City of Pittsburgh",
+            filing_code="PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE",
             client_or_entity="Rippling PEO 1, Inc.",
-            source_channel=CHANNEL,
-            source_thread_ts=None,
             reporter="Tony",
         )
 

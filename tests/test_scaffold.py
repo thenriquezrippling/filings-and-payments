@@ -1,4 +1,4 @@
-"""Smoke tests for Phase 1 scaffolding."""
+"""Smoke tests for scaffolding."""
 
 from __future__ import annotations
 

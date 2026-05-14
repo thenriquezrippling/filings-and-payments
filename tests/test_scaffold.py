@@ -22,7 +22,14 @@ def test_main_callable() -> None:
     main()
 
 
-def test_anthropic_client_complete_json_not_implemented() -> None:
-    client = AnthropicClient(api_key="test")
-    with pytest.raises(NotImplementedError):
-        client.complete_json([], _DummyModel)
+def test_anthropic_client_mock_mode() -> None:
+    client = AnthropicClient(api_key="mock")
+    assert client.is_mock
+    result = client.complete_json([], _DummyModel)
+    assert isinstance(result, _DummyModel)
+    assert result.x == 1
+
+
+def test_anthropic_client_real_mode_requires_key() -> None:
+    client = AnthropicClient(api_key="sk-ant-real-key")
+    assert not client.is_mock

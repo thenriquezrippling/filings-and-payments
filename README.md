@@ -66,12 +66,38 @@ Use Jira Cloud REST API v3 with email + API token (Basic auth). For create metad
 
 The `SyncService` in `services/sync_service.py` provides persistent, bidirectional synchronization between Slack threads and Jira issues in the FILING project.
 
-### Native Sync Thread
+### Native Sync Thread — Investigation Results (May 2026)
 
-The Jira Cloud Slack app's "Sync Thread" feature **cannot be triggered programmatically** — there is no REST API, Slack connector, or MCP tool to invoke it. The bot works around this by:
+**The Jira Cloud Slack app's native "Sync Thread" button CANNOT be triggered programmatically.** This is not a custom `Sync [FILING-KEY]` marker — we are referring to the actual native Jira Cloud Slack app feature that appears on the unfurl card when a Jira URL is posted.
 
-1. Posting the **Jira issue URL** in the Slack thread, which causes the Jira Cloud Slack app to unfurl a native rich card.
-2. Running custom two-way sync that mirrors the native Sync Thread behavior.
+**Investigated avenues (all negative):**
+
+| Approach | Result |
+|----------|--------|
+| Atlassian REST API | No endpoint for triggering Sync Thread |
+| Atlassian MCP tools | Only issue CRUD available (createJiraIssue, editJiraIssue, addCommentToJiraIssue, etc.) |
+| Slack connector catalog (`jira.cloud`) | Only exposes `create_issue` and `edit_issue` |
+| Atlassian Forge / Connect apps | No module, hook, or event to invoke native Sync Thread |
+| Community requests (JRACLOUD-97440, JRACLOUD-97607) | All unresolved feature requests as of May 2026 |
+
+**Critical limitation — bot-posted URLs excluded:**
+
+Even posting the Jira URL from our bot **does NOT activate native Sync Thread**. Per [JRACLOUD-97440](https://jira.atlassian.com/browse/JRACLOUD-97440), messages posted by bot users show an "Assign" button on the unfurl card instead of "Sync Thread". The native sync feature only works when a **human** manually pastes a Jira URL.
+
+**Additional context:**
+- The native Sync Thread was temporarily disabled by Atlassian (Oct 2025) for improvements.
+- Re-enabled in phases (Nov 2025), still rolling out to tenants as of April 2026.
+- Only works in Channels (not DMs or group chats).
+- Availability per-tenant requires contacting Atlassian directly (mravishankar@atlassian.com per community posts).
+
+**Conclusion:** Native Sync Thread is a manual UI-only action. No programmatic trigger exists. Custom two-way sync is the only viable approach for bot-driven synchronization.
+
+### Recommended approach (implemented)
+
+Since native sync cannot be triggered programmatically, this bot implements custom two-way sync that mirrors the native behavior:
+
+1. **Post the Jira issue URL** in the Slack thread — this causes the Jira Cloud app to unfurl a rich card (if installed and enabled for the tenant), giving users visibility into the linked issue.
+2. **Run custom bidirectional sync** — Slack replies become Jira comments, Jira comments become Slack thread replies, with full loop prevention and deduplication.
 
 ### How to link a thread
 

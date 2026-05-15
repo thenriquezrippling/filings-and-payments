@@ -1,20 +1,47 @@
 """Persistent two-way Jira <-> Slack thread synchronization.
 
+NATIVE SYNC THREAD INVESTIGATION (May 2026)
+============================================
+The Jira Cloud Slack app's "Sync Thread" button — which appears on the unfurl
+card when a Jira URL is posted by a human in a Slack channel — CANNOT be
+triggered programmatically.  The following avenues were investigated:
+
+1. Atlassian REST API: No endpoint exists.
+2. Atlassian MCP tools: Only issue CRUD is available (no sync actions).
+3. Slack connector catalog (jira.cloud): Only ``create_issue`` and
+   ``edit_issue`` are exposed — no sync action.
+4. Atlassian Forge / Connect: No hook, event, or module to invoke Sync Thread.
+5. Community / JRACLOUD tickets: Multiple requests exist (JRACLOUD-97440,
+   JRACLOUD-97607) — all unresolved as of May 2026.
+
+Critical additional limitation:
+- JRACLOUD-97440 confirms that messages posted by **bots** do NOT show the
+  "Sync Thread" button on the Jira unfurl card.  Bot-posted URLs show an
+  "Assign" button instead.  This means that even posting the Jira URL from
+  our bot will NOT activate native Sync Thread.
+- The native feature was temporarily disabled (Oct 2025), re-enabled in
+  phases (Nov 2025), and is STILL rolling out to tenants as of April 2026.
+  Availability is not guaranteed for any given workspace.
+
+CONCLUSION: Native Sync Thread cannot be triggered by any programmatic means.
+We must use custom two-way sync for reliable Slack <-> Jira synchronization.
+
 Architecture:
   - SyncLink stores metadata for each linked Slack thread / Jira issue pair
   - SyncLinkStore is a pluggable persistence layer (in-memory default)
   - SyncService orchestrates all sync operations
 
 Initial link (after ticket creation or sync-only command):
-  1. Post the Jira issue URL into the Slack thread (triggers native card unfurl)
+  1. Post the Jira issue URL into the Slack thread (triggers card unfurl if
+     native Jira Cloud app is installed, but does NOT activate native sync
+     because bot-posted URLs are excluded from Sync Thread per JRACLOUD-97440)
   2. Add a minimal Jira comment with the Slack permalink
-  3. Create a SyncLink for persistent two-way sync
+  3. Create a SyncLink for persistent custom two-way sync
 
-The Jira Cloud Slack app does NOT expose a programmatic API to trigger its
-native "Sync Thread" behavior.  Posting the issue URL causes the Jira Cloud
-app to unfurl a rich card in Slack.  Custom two-way sync mirrors the native
-behavior: Slack replies become Jira comments, Jira comments become Slack
-replies.
+Custom two-way sync mirrors the native Sync Thread behavior:
+  - Slack replies become Jira comments
+  - Jira comments become Slack thread replies
+  This is the ONLY reliable path to achieve bidirectional sync from a bot.
 
 Ongoing sync:
   - Slack reply -> Jira comment:  ``Author (Slack): message text``
@@ -300,9 +327,17 @@ class JiraClient(Protocol):
 class SyncService:
     """Persistent two-way Jira <-> Slack thread synchronization.
 
-    Posts the Jira issue URL in Slack threads so the native Jira Cloud app can
-    unfurl a rich card.  Custom two-way sync mirrors the Jira Cloud native
-    "Sync Thread" behavior since no programmatic API exists to trigger it.
+    This is a CUSTOM sync implementation because the native Jira Cloud Slack
+    app "Sync Thread" button cannot be triggered programmatically (no API, no
+    Forge hook, no Slack connector — see module docstring for full investigation).
+
+    Additionally, bot-posted Jira URLs do NOT show the "Sync Thread" button on
+    the unfurl card (JRACLOUD-97440) — they show "Assign" instead.  So even
+    posting the URL is not sufficient to activate native sync.
+
+    The bot still posts the Jira issue URL so the native Jira Cloud app unfurls
+    a rich card (issue summary, status, assignee) for human visibility, but all
+    actual synchronization is handled by this custom engine.
     """
 
     def __init__(

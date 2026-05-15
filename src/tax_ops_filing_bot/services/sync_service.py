@@ -6,9 +6,15 @@ Architecture:
   - SyncService orchestrates all sync operations
 
 Initial link (after ticket creation or sync-only command):
-  1. Post ``Sync [FILING-KEY]`` into the Slack thread
-  2. Add a minimal Jira comment (no channel IDs, timestamps, or audit data)
+  1. Post the Jira issue URL into the Slack thread (triggers native card unfurl)
+  2. Add a minimal Jira comment with the Slack permalink
   3. Create a SyncLink for persistent two-way sync
+
+The Jira Cloud Slack app does NOT expose a programmatic API to trigger its
+native "Sync Thread" behavior.  Posting the issue URL causes the Jira Cloud
+app to unfurl a rich card in Slack.  Custom two-way sync mirrors the native
+behavior: Slack replies become Jira comments, Jira comments become Slack
+replies.
 
 Ongoing sync:
   - Slack reply -> Jira comment:  ``Author (Slack): message text``
@@ -18,9 +24,10 @@ Loop prevention:
   - Slack messages from the bot user are skipped in Slack->Jira direction
   - Jira comments containing ``[synced-from-slack]`` are skipped in Jira->Slack
   - The initial link comment is also skipped in Jira->Slack
+  - Slack messages containing only a Jira issue URL are skipped
 
 Deduplication:
-  - Sync markers checked before posting
+  - Issue URL checked before posting
   - Link comments checked before adding
   - ``last_synced_slack_ts`` and ``last_synced_jira_comment_id`` in SyncLink
     prevent reprocessing old messages
@@ -36,6 +43,9 @@ from typing import Any, Protocol, Sequence
 logger = logging.getLogger(__name__)
 
 _SYNC_MARKER_RE = re.compile(r"Sync\s+\[([A-Z]+-\d+)\]")
+_JIRA_ISSUE_URL_RE = re.compile(
+    r"https?://[^/]+/browse/([A-Z]+-\d+)",
+)
 _SYNC_COMMAND_RE = re.compile(
     r"sync\s+this\s+thread\s+to\s+([A-Z]+-\d+)",
     re.IGNORECASE,
@@ -43,6 +53,25 @@ _SYNC_COMMAND_RE = re.compile(
 
 LINK_COMMENT_MARKER = "Linked Slack thread for ongoing discussion and updates."
 SYNCED_FROM_SLACK_MARKER = "[synced-from-slack]"
+
+DEFAULT_JIRA_BASE_URL = "https://your-domain.atlassian.net"
+
+
+def build_jira_issue_url(jira_base_url: str, issue_key: str) -> str:
+    """Build the browsable Jira issue URL."""
+    base = jira_base_url.rstrip("/")
+    return f"{base}/browse/{issue_key}"
+
+
+def build_sync_marker(issue_key: str, jira_base_url: str | None = None) -> str:
+    """Build the Slack message posted when linking a thread to a Jira issue.
+
+    When ``jira_base_url`` is provided the message contains the full issue URL
+    so the Jira Cloud Slack app can unfurl a native card.  A human-readable
+    ``Sync [KEY]`` reference is included on a second line.
+    """
+    url = build_jira_issue_url(jira_base_url or DEFAULT_JIRA_BASE_URL, issue_key)
+    return f"{url}\nSync [{issue_key}]"
 
 
 def build_initial_link_comment(permalink: str | None = None) -> str:
@@ -64,6 +93,7 @@ class SyncLink:
     channel_id: str
     thread_ts: str
     permalink: str | None = None
+    jira_base_url: str | None = None
     last_synced_slack_ts: str | None = None
     last_synced_jira_comment_id: str | None = None
 
@@ -111,17 +141,27 @@ def parse_sync_command(text: str) -> str | None:
     return None
 
 
-def build_sync_marker(issue_key: str) -> str:
-    return f"Sync [{issue_key}]"
-
-
 def thread_has_sync_marker(messages: list[dict[str, Any]], issue_key: str) -> bool:
-    """Check if any message in the thread already contains Sync [ISSUE_KEY]."""
-    marker = build_sync_marker(issue_key)
+    """Check if any message in the thread already contains a sync reference.
+
+    Matches both the Jira issue URL (``/browse/FILING-1234``) and the legacy
+    ``Sync [FILING-1234]`` text format.
+    """
+    legacy_marker = f"Sync [{issue_key}]"
+    url_fragment = f"/browse/{issue_key}"
     for msg in messages:
         text = msg.get("text", "")
-        if marker in text:
+        if legacy_marker in text or url_fragment in text:
             return True
+    return False
+
+
+def _message_is_sync_marker(text: str) -> bool:
+    """True if the message text is a sync marker (URL + key reference)."""
+    if _JIRA_ISSUE_URL_RE.search(text):
+        return True
+    if _SYNC_MARKER_RE.search(text):
+        return True
     return False
 
 
@@ -222,6 +262,7 @@ class SyncResult:
     issue_key: str
     sync_marker_posted: bool
     jira_comment_added: bool
+    jira_url: str | None = None
     skipped_marker: bool = False
     skipped_comment: bool = False
 
@@ -257,7 +298,12 @@ class JiraClient(Protocol):
 # ---------------------------------------------------------------------------
 
 class SyncService:
-    """Persistent two-way Jira <-> Slack thread synchronization."""
+    """Persistent two-way Jira <-> Slack thread synchronization.
+
+    Posts the Jira issue URL in Slack threads so the native Jira Cloud app can
+    unfurl a rich card.  Custom two-way sync mirrors the Jira Cloud native
+    "Sync Thread" behavior since no programmatic API exists to trigger it.
+    """
 
     def __init__(
         self,
@@ -266,11 +312,13 @@ class SyncService:
         store: SyncLinkStore | None = None,
         *,
         bot_user_id: str | None = None,
+        jira_base_url: str | None = None,
     ) -> None:
         self._slack = slack
         self._jira = jira
         self._store: SyncLinkStore = store or InMemorySyncLinkStore()
         self._bot_user_id = bot_user_id
+        self._jira_base_url = jira_base_url or DEFAULT_JIRA_BASE_URL
 
     # -- Initial link / sync-only command ----------------------------------
 
@@ -283,7 +331,7 @@ class SyncService:
         permalink: str | None = None,
         transcript: str = "",
     ) -> SyncResult:
-        """Post-creation sync: Slack marker + minimal Jira comment + create link."""
+        """Post-creation sync: Jira URL in Slack + minimal Jira comment + create link."""
         return self._establish_link(
             issue_key=issue_key,
             channel=channel,
@@ -321,6 +369,7 @@ class SyncService:
         comment_added = False
         skipped_marker = False
         skipped_comment = False
+        jira_url = build_jira_issue_url(self._jira_base_url, issue_key)
 
         try:
             resp = self._slack.conversations_replies(
@@ -336,12 +385,12 @@ class SyncService:
             try:
                 self._slack.chat_postMessage(
                     channel=channel,
-                    text=build_sync_marker(issue_key),
+                    text=build_sync_marker(issue_key, self._jira_base_url),
                     thread_ts=thread_ts,
                 )
                 marker_posted = True
             except Exception:
-                logger.exception("Failed to post sync marker to Slack")
+                logger.exception("Failed to post Jira issue URL to Slack")
 
         try:
             existing_comments = self._jira.get_comments(issue_key)
@@ -383,6 +432,7 @@ class SyncService:
             channel_id=channel,
             thread_ts=thread_ts,
             permalink=permalink,
+            jira_base_url=self._jira_base_url,
             last_synced_slack_ts=last_slack_ts,
             last_synced_jira_comment_id=last_jira_id,
         )
@@ -392,6 +442,7 @@ class SyncService:
             issue_key=issue_key,
             sync_marker_posted=marker_posted,
             jira_comment_added=comment_added,
+            jira_url=jira_url,
             skipped_marker=skipped_marker,
             skipped_comment=skipped_comment,
         )
@@ -405,8 +456,9 @@ class SyncService:
     ) -> ContinuousSyncResult:
         """Sync new Slack thread replies to Jira comments.
 
-        Skips messages from the bot user (loop prevention) and messages
-        already synced (deduplication via last_synced_slack_ts).
+        Skips messages from the bot user (loop prevention), messages containing
+        Jira issue URLs or sync markers (deduplication), and messages already
+        synced (via last_synced_slack_ts).
         """
         if link is None:
             if issue_key is None:
@@ -435,7 +487,7 @@ class SyncService:
                 continue
 
             text = msg.get("text", "")
-            if _SYNC_MARKER_RE.search(text):
+            if _message_is_sync_marker(text):
                 result.slack_to_jira_skipped += 1
                 continue
 

@@ -66,15 +66,22 @@ Use Jira Cloud REST API v3 with email + API token (Basic auth). For create metad
 
 The `SyncService` in `services/sync_service.py` provides persistent, bidirectional synchronization between Slack threads and Jira issues in the FILING project.
 
+### Native Sync Thread
+
+The Jira Cloud Slack app's "Sync Thread" feature **cannot be triggered programmatically** — there is no REST API, Slack connector, or MCP tool to invoke it. The bot works around this by:
+
+1. Posting the **Jira issue URL** in the Slack thread, which causes the Jira Cloud Slack app to unfurl a native rich card.
+2. Running custom two-way sync that mirrors the native Sync Thread behavior.
+
 ### How to link a thread
 
 There are two ways to establish a link:
 
-1. **Ticket creation flow** — when a new Jira ticket is created from a Slack thread, the bot automatically calls `sync_after_creation()`, which posts `Sync [FILING-KEY]` in the thread and adds a minimal Jira comment.
+1. **Ticket creation flow** — when a new Jira ticket is created from a Slack thread, the bot automatically calls `sync_after_creation()`, which posts the Jira issue URL (e.g. `https://your-domain.atlassian.net/browse/FILING-6152`) in the thread and adds a minimal Jira comment with the Slack permalink.
 
 2. **Sync-only command** — a user sends `sync this thread to FILING-1234` (or `@bot sync this thread to FILING-1234`). The bot calls `sync_existing()`, which links the thread to the existing issue without creating a new ticket.
 
-Both flows create a `SyncLink` record that stores the Jira issue key, Slack channel ID, thread timestamp, permalink, and sync cursors.
+Both flows create a `SyncLink` record that stores the Jira issue key, Slack channel ID, thread timestamp, permalink, Jira base URL, and sync cursors.
 
 ### How two-way sync works
 
@@ -96,16 +103,19 @@ The `sync_all(issue_key)` convenience method runs both directions in a single ca
 
 ### How loop prevention works
 
-The sync engine prevents infinite Slack ↔ Jira loops through three mechanisms:
+The sync engine prevents infinite Slack ↔ Jira loops through four mechanisms:
 
-1. **Bot user filtering** — Slack messages posted by the bot (identified by `bot_user_id`) are skipped during Slack→Jira sync. This covers Jira→Slack synced messages and the sync marker itself.
+1. **Bot user filtering** — Slack messages posted by the bot (identified by `bot_user_id`) are skipped during Slack→Jira sync. This covers Jira→Slack synced messages and the Jira URL post itself.
 
-2. **Synced-from-Slack marker** — every Jira comment created by the Slack→Jira sync includes a `[synced-from-slack]` suffix. The Jira→Slack sync skips any comment containing this marker.
+2. **Jira URL / sync marker filtering** — messages containing a Jira issue URL (`/browse/...`) or `Sync [KEY]` are skipped during Slack→Jira sync, even if not posted by the bot user.
 
-3. **Initial link comment filtering** — the initial Jira link comment ("Linked Slack thread: ...") is skipped during Jira→Slack sync.
+3. **Synced-from-Slack marker** — every Jira comment created by the Slack→Jira sync includes a `[synced-from-slack]` suffix. The Jira→Slack sync skips any comment containing this marker.
+
+4. **Initial link comment filtering** — the initial Jira link comment ("Linked Slack thread: ...") is skipped during Jira→Slack sync.
 
 Deduplication is also enforced:
-- Sync markers are checked before posting (no duplicate `Sync [FILING-KEY]` messages).
+- The Jira issue URL is checked before posting (no duplicate URL messages).
+- Legacy `Sync [FILING-KEY]` markers are also detected for backward compatibility.
 - Link comments are checked before adding (no duplicate initial Jira comments).
 - `last_synced_slack_ts` and `last_synced_jira_comment_id` cursors prevent reprocessing.
 
@@ -114,9 +124,13 @@ Deduplication is also enforced:
 **Initial link after ticket creation:**
 ```
 Slack thread:  ... operational discussion ...
-Bot posts:     Sync [FILING-6152]
-Jira comment:  Linked Slack thread: Linked Slack thread for ongoing discussion and updates.
+Bot posts:     https://your-domain.atlassian.net/browse/FILING-6152
+               Sync [FILING-6152]
+Jira comment:  Linked Slack thread: https://slack.com/archives/C001/p123456
+               Linked Slack thread for ongoing discussion and updates.
 ```
+
+The Jira issue URL triggers the Jira Cloud Slack app to unfurl a native card showing the issue summary, status, and assignee.
 
 **Ongoing Slack reply synced to Jira:**
 ```
@@ -140,6 +154,7 @@ Each `SyncLink` stores:
 | `channel_id` | Slack channel ID |
 | `thread_ts` | Slack thread timestamp |
 | `permalink` | Slack thread permalink (optional) |
+| `jira_base_url` | Jira Cloud site URL (for building browse URLs) |
 | `last_synced_slack_ts` | Timestamp of last synced Slack message |
 | `last_synced_jira_comment_id` | ID of last synced Jira comment |
 
@@ -149,7 +164,7 @@ The default `InMemorySyncLinkStore` is suitable for testing and single-process d
 
 - **No Jira ticket creation** without explicit Slack confirmation (e.g. button).
 - **`@claude-filings sync this thread to FILING-1234`:** append thread content to that issue only; never create a ticket or show create confirmation.
-- After create: post `Sync [FILING-KEY]` back in the thread, establish two-way sync.
+- After create: post the Jira issue URL back in the thread (native card unfurl), establish two-way sync.
 
 ## Roadmap
 

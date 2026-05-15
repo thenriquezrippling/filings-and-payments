@@ -1,16 +1,18 @@
 """Tests for persistent two-way Jira <-> Slack thread synchronization.
 
 Covers:
-  - Initial linking (Sync marker + minimal Jira comment)
+  - Jira issue URL posted in Slack thread (native card unfurl)
+  - Initial linking (URL marker + minimal Jira comment)
   - Sync-only command
   - Slack reply -> Jira comment
   - Jira comment -> Slack reply
   - Duplicate prevention
   - Infinite loop prevention
-  - No duplicate Sync markers
+  - No duplicate sync markers
   - No duplicate Jira link comments
   - New ticket creation automatically enables sync
   - SyncLink metadata storage
+  - Native Sync Thread cannot be triggered programmatically (fallback to custom)
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, call
 
 from tax_ops_filing_bot.services.sync_service import (
+    DEFAULT_JIRA_BASE_URL,
     LINK_COMMENT_MARKER,
     SYNCED_FROM_SLACK_MARKER,
     ContinuousSyncResult,
@@ -27,6 +30,7 @@ from tax_ops_filing_bot.services.sync_service import (
     SyncService,
     build_initial_link_comment,
     build_jira_comment_adf,
+    build_jira_issue_url,
     build_jira_to_slack_message,
     build_slack_to_jira_comment,
     build_sync_marker,
@@ -34,7 +38,10 @@ from tax_ops_filing_bot.services.sync_service import (
     jira_has_thread_comment,
     parse_sync_command,
     thread_has_sync_marker,
+    _message_is_sync_marker,
 )
+
+JIRA_BASE = "https://acme.atlassian.net"
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +82,53 @@ def _adf_comment(text: str, *, comment_id: str = "1", author: str = "Unknown") -
 
 
 # ===========================================================================
-# 1. Parse sync command
+# 1. Jira issue URL builder
+# ===========================================================================
+
+class TestBuildJiraIssueUrl:
+    def test_basic_url(self) -> None:
+        url = build_jira_issue_url("https://acme.atlassian.net", "FILING-1234")
+        assert url == "https://acme.atlassian.net/browse/FILING-1234"
+
+    def test_trailing_slash_stripped(self) -> None:
+        url = build_jira_issue_url("https://acme.atlassian.net/", "FILING-42")
+        assert url == "https://acme.atlassian.net/browse/FILING-42"
+
+    def test_default_base_url(self) -> None:
+        url = build_jira_issue_url(DEFAULT_JIRA_BASE_URL, "FILING-6152")
+        assert url == f"{DEFAULT_JIRA_BASE_URL}/browse/FILING-6152"
+
+
+# ===========================================================================
+# 2. Build sync marker (now includes Jira URL)
+# ===========================================================================
+
+class TestBuildSyncMarker:
+    def test_contains_jira_url(self) -> None:
+        marker = build_sync_marker("FILING-1234", JIRA_BASE)
+        assert "https://acme.atlassian.net/browse/FILING-1234" in marker
+
+    def test_contains_sync_key_reference(self) -> None:
+        marker = build_sync_marker("FILING-1234", JIRA_BASE)
+        assert "Sync [FILING-1234]" in marker
+
+    def test_url_on_first_line(self) -> None:
+        marker = build_sync_marker("FILING-6152", JIRA_BASE)
+        lines = marker.split("\n")
+        assert lines[0] == "https://acme.atlassian.net/browse/FILING-6152"
+
+    def test_default_base_url_used(self) -> None:
+        marker = build_sync_marker("FILING-99")
+        assert DEFAULT_JIRA_BASE_URL in marker
+        assert "/browse/FILING-99" in marker
+
+    def test_format_large_number(self) -> None:
+        marker = build_sync_marker("FILING-6152", JIRA_BASE)
+        assert "Sync [FILING-6152]" in marker
+
+
+# ===========================================================================
+# 3. Parse sync command
 # ===========================================================================
 
 class TestParseSyncCommand:
@@ -93,24 +146,20 @@ class TestParseSyncCommand:
 
 
 # ===========================================================================
-# 2. Build sync marker
-# ===========================================================================
-
-class TestBuildSyncMarker:
-    def test_format(self) -> None:
-        assert build_sync_marker("FILING-1234") == "Sync [FILING-1234]"
-
-    def test_format_large_number(self) -> None:
-        assert build_sync_marker("FILING-6152") == "Sync [FILING-6152]"
-
-
-# ===========================================================================
-# 3. Thread has sync marker
+# 4. Thread has sync marker (URL + legacy)
 # ===========================================================================
 
 class TestThreadHasSyncMarker:
-    def test_found(self) -> None:
+    def test_found_by_url(self) -> None:
+        msgs = [{"text": "https://acme.atlassian.net/browse/FILING-1234\nSync [FILING-1234]"}]
+        assert thread_has_sync_marker(msgs, "FILING-1234") is True
+
+    def test_found_by_legacy_marker(self) -> None:
         msgs = [{"text": "Sync [FILING-1234]"}]
+        assert thread_has_sync_marker(msgs, "FILING-1234") is True
+
+    def test_found_by_url_only(self) -> None:
+        msgs = [{"text": "https://acme.atlassian.net/browse/FILING-1234"}]
         assert thread_has_sync_marker(msgs, "FILING-1234") is True
 
     def test_not_found(self) -> None:
@@ -118,7 +167,7 @@ class TestThreadHasSyncMarker:
         assert thread_has_sync_marker(msgs, "FILING-1234") is False
 
     def test_different_key_not_matched(self) -> None:
-        msgs = [{"text": "Sync [FILING-5555]"}]
+        msgs = [{"text": "https://acme.atlassian.net/browse/FILING-5555"}]
         assert thread_has_sync_marker(msgs, "FILING-1234") is False
 
     def test_empty_messages(self) -> None:
@@ -126,7 +175,29 @@ class TestThreadHasSyncMarker:
 
 
 # ===========================================================================
-# 4. Jira has link comment (new) + thread comment (backward compat)
+# 5. _message_is_sync_marker
+# ===========================================================================
+
+class TestMessageIsSyncMarker:
+    def test_jira_url_detected(self) -> None:
+        assert _message_is_sync_marker("https://acme.atlassian.net/browse/FILING-1234") is True
+
+    def test_legacy_sync_marker_detected(self) -> None:
+        assert _message_is_sync_marker("Sync [FILING-1234]") is True
+
+    def test_full_sync_message_detected(self) -> None:
+        msg = "https://acme.atlassian.net/browse/FILING-1234\nSync [FILING-1234]"
+        assert _message_is_sync_marker(msg) is True
+
+    def test_regular_message_not_detected(self) -> None:
+        assert _message_is_sync_marker("The agency confirmed the filing.") is False
+
+    def test_partial_url_not_detected(self) -> None:
+        assert _message_is_sync_marker("check out acme.atlassian.net") is False
+
+
+# ===========================================================================
+# 6. Jira has link comment (new) + thread comment (backward compat)
 # ===========================================================================
 
 class TestJiraHasLinkComment:
@@ -159,7 +230,7 @@ class TestJiraHasThreadComment:
 
 
 # ===========================================================================
-# 5. Message format helpers
+# 7. Message format helpers
 # ===========================================================================
 
 class TestBuildInitialLinkComment:
@@ -241,15 +312,23 @@ class TestBuildJiraCommentAdf:
 
 
 # ===========================================================================
-# 6. SyncLink and InMemorySyncLinkStore
+# 8. SyncLink and InMemorySyncLinkStore
 # ===========================================================================
 
 class TestSyncLink:
     def test_defaults(self) -> None:
         link = SyncLink(issue_key="FILING-1", channel_id="C001", thread_ts="100.0")
         assert link.permalink is None
+        assert link.jira_base_url is None
         assert link.last_synced_slack_ts is None
         assert link.last_synced_jira_comment_id is None
+
+    def test_with_jira_base_url(self) -> None:
+        link = SyncLink(
+            issue_key="FILING-1", channel_id="C001", thread_ts="100.0",
+            jira_base_url=JIRA_BASE,
+        )
+        assert link.jira_base_url == JIRA_BASE
 
 
 class TestInMemorySyncLinkStore:
@@ -286,14 +365,14 @@ class TestInMemorySyncLinkStore:
 
 
 # ===========================================================================
-# 7. Initial link — sync after creation
+# 9. Initial link — sync after creation
 # ===========================================================================
 
 class TestSyncServiceAfterCreation:
-    def test_posts_sync_marker(self) -> None:
+    def test_posts_jira_issue_url(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -304,12 +383,26 @@ class TestSyncServiceAfterCreation:
         assert result.sync_marker_posted is True
         slack.chat_postMessage.assert_called_once()
         call_kwargs = slack.chat_postMessage.call_args
-        assert "Sync [FILING-1234]" in call_kwargs.kwargs.get("text", "")
+        text = call_kwargs.kwargs.get("text", "")
+        assert "https://acme.atlassian.net/browse/FILING-1234" in text
+        assert "Sync [FILING-1234]" in text
+
+    def test_returns_jira_url(self) -> None:
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
+
+        result = svc.sync_after_creation(
+            issue_key="FILING-1234",
+            channel="C001",
+            thread_ts="123.456",
+        )
+        assert result.jira_url == "https://acme.atlassian.net/browse/FILING-1234"
 
     def test_adds_jira_comment_with_permalink(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -330,7 +423,7 @@ class TestSyncServiceAfterCreation:
     def test_jira_comment_without_permalink(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -345,7 +438,7 @@ class TestSyncServiceAfterCreation:
     def test_minimal_jira_comment_has_no_standalone_channel_id(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -362,7 +455,7 @@ class TestSyncServiceAfterCreation:
     def test_minimal_jira_comment_has_no_thread_ts(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -376,7 +469,7 @@ class TestSyncServiceAfterCreation:
     def test_minimal_jira_comment_has_no_transcript(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -392,7 +485,7 @@ class TestSyncServiceAfterCreation:
     def test_minimal_jira_comment_has_no_verbose_metadata(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -412,7 +505,7 @@ class TestSyncServiceAfterCreation:
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -425,13 +518,14 @@ class TestSyncServiceAfterCreation:
         assert link.channel_id == "C001"
         assert link.thread_ts == "123.456"
         assert link.permalink == "https://slack.com/archives/C001/p123456"
+        assert link.jira_base_url == JIRA_BASE
 
     def test_new_ticket_creation_auto_enables_sync(self) -> None:
         """After ticket creation, the sync link exists and can be used for two-way sync."""
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-6152",
@@ -443,16 +537,31 @@ class TestSyncServiceAfterCreation:
         assert link.issue_key == "FILING-6152"
         assert link.last_synced_slack_ts is not None
 
+    def test_slack_message_contains_browsable_url(self) -> None:
+        """The Slack message must include the full Jira browse URL for native unfurl."""
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
+
+        svc.sync_after_creation(
+            issue_key="FILING-6152",
+            channel="C001",
+            thread_ts="100.0",
+        )
+        posted_text = slack.chat_postMessage.call_args.kwargs["text"]
+        assert posted_text.startswith("https://")
+        assert "/browse/FILING-6152" in posted_text
+
 
 # ===========================================================================
-# 8. Sync-only command
+# 10. Sync-only command
 # ===========================================================================
 
 class TestSyncServiceSyncOnly:
-    def test_sync_only_posts_marker(self) -> None:
+    def test_sync_only_posts_jira_url(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_existing(
             issue_key="FILING-1234",
@@ -463,11 +572,14 @@ class TestSyncServiceSyncOnly:
         assert result.sync_marker_posted is True
         assert result.jira_comment_added is True
         assert result.issue_key == "FILING-1234"
+        assert result.jira_url == "https://acme.atlassian.net/browse/FILING-1234"
+        text = slack.chat_postMessage.call_args.kwargs["text"]
+        assert "https://acme.atlassian.net/browse/FILING-1234" in text
 
     def test_sync_only_does_not_create_jira_issue(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         svc.sync_existing(
             issue_key="FILING-1234",
@@ -481,7 +593,7 @@ class TestSyncServiceSyncOnly:
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         svc.sync_existing(
             issue_key="FILING-1234",
@@ -494,7 +606,7 @@ class TestSyncServiceSyncOnly:
     def test_sync_only_posts_jira_comment_with_permalink(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         svc.sync_existing(
             issue_key="FILING-1234",
@@ -509,7 +621,7 @@ class TestSyncServiceSyncOnly:
     def test_sync_only_posts_minimal_jira_comment_without_permalink(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         svc.sync_existing(
             issue_key="FILING-1234",
@@ -522,16 +634,20 @@ class TestSyncServiceSyncOnly:
 
 
 # ===========================================================================
-# 9. Deduplication — initial link
+# 11. Deduplication — initial link
 # ===========================================================================
 
 class TestSyncDeduplication:
-    def test_duplicate_sync_marker_not_posted(self) -> None:
+    def test_duplicate_url_not_posted(self) -> None:
+        """If the Jira issue URL is already in the thread, skip posting."""
         slack = _mock_slack(
-            existing_messages=[{"text": "Sync [FILING-1234]", "ts": "100.0"}],
+            existing_messages=[{
+                "text": "https://acme.atlassian.net/browse/FILING-1234\nSync [FILING-1234]",
+                "ts": "100.0",
+            }],
         )
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -543,6 +659,22 @@ class TestSyncDeduplication:
         assert result.sync_marker_posted is False
         slack.chat_postMessage.assert_not_called()
 
+    def test_duplicate_legacy_marker_not_posted(self) -> None:
+        """Backward compat: old Sync [KEY] format also prevents re-posting."""
+        slack = _mock_slack(
+            existing_messages=[{"text": "Sync [FILING-1234]", "ts": "100.0"}],
+        )
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
+
+        result = svc.sync_after_creation(
+            issue_key="FILING-1234",
+            channel="C001",
+            thread_ts="123.456",
+        )
+        assert result.skipped_marker is True
+        assert result.sync_marker_posted is False
+
     def test_duplicate_jira_link_comment_not_added(self) -> None:
         existing_comment = build_initial_link_comment(
             "https://slack.com/archives/C001/p123456"
@@ -551,7 +683,7 @@ class TestSyncDeduplication:
         jira = _mock_jira(
             existing_comments=[_adf_comment(existing_comment, comment_id="500")],
         )
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -569,12 +701,15 @@ class TestSyncDeduplication:
             "https://slack.com/archives/C001/p123456"
         )
         slack = _mock_slack(
-            existing_messages=[{"text": "Sync [FILING-1234]", "ts": "100.0"}],
+            existing_messages=[{
+                "text": "https://acme.atlassian.net/browse/FILING-1234\nSync [FILING-1234]",
+                "ts": "100.0",
+            }],
         )
         jira = _mock_jira(
             existing_comments=[_adf_comment(existing_comment, comment_id="500")],
         )
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -590,7 +725,7 @@ class TestSyncDeduplication:
 
 
 # ===========================================================================
-# 10. Slack reply -> Jira comment (two-way sync)
+# 12. Slack reply -> Jira comment (two-way sync)
 # ===========================================================================
 
 class TestSlackToJiraSync:
@@ -600,13 +735,14 @@ class TestSlackToJiraSync:
             issue_key="FILING-100",
             channel_id="C001",
             thread_ts="100.0",
+            jira_base_url=JIRA_BASE,
             last_synced_slack_ts="100.0",
         )
         store.save(link)
 
         slack = _mock_slack(slack_messages)
         jira = _mock_jira(jira_comments)
-        svc = SyncService(slack, jira, store, bot_user_id=bot_user_id)
+        svc = SyncService(slack, jira, store, bot_user_id=bot_user_id, jira_base_url=JIRA_BASE)
         return svc, store, slack, jira
 
     def test_new_slack_reply_synced_to_jira(self) -> None:
@@ -638,7 +774,8 @@ class TestSlackToJiraSync:
         svc, store, slack, jira = self._setup(
             slack_messages=[
                 {"ts": "100.0", "user": "U001", "text": "Thread start"},
-                {"ts": "101.0", "user": "BOT1", "text": "Sync [FILING-100]"},
+                {"ts": "101.0", "user": "BOT1",
+                 "text": "https://acme.atlassian.net/browse/FILING-100\nSync [FILING-100]"},
                 {"ts": "102.0", "user": "U002", "username": "Tony", "text": "Real reply"},
             ],
             bot_user_id="BOT1",
@@ -648,8 +785,23 @@ class TestSlackToJiraSync:
         assert result.slack_to_jira_synced == 1
         assert result.slack_to_jira_skipped >= 1
 
-    def test_sync_marker_messages_skipped(self) -> None:
-        """Even without bot_user_id matching, sync markers are skipped."""
+    def test_jira_url_messages_skipped(self) -> None:
+        """Messages containing the Jira issue URL are skipped (not real discussion)."""
+        svc, store, slack, jira = self._setup(
+            slack_messages=[
+                {"ts": "100.0", "user": "U001", "text": "Thread start"},
+                {"ts": "101.0", "user": "U999",
+                 "text": "https://acme.atlassian.net/browse/FILING-100\nSync [FILING-100]"},
+            ],
+            bot_user_id=None,
+        )
+
+        result = svc.sync_slack_to_jira("FILING-100")
+        assert result.slack_to_jira_synced == 0
+        assert result.slack_to_jira_skipped >= 1
+
+    def test_legacy_sync_marker_messages_skipped(self) -> None:
+        """Even without URL, legacy Sync [KEY] markers are skipped."""
         svc, store, slack, jira = self._setup(
             slack_messages=[
                 {"ts": "100.0", "user": "U001", "text": "Thread start"},
@@ -678,7 +830,7 @@ class TestSlackToJiraSync:
             {"ts": "103.0", "user": "U004", "username": "New", "text": "New message"},
         ])
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result = svc.sync_slack_to_jira("FILING-100")
         assert result.slack_to_jira_synced == 1
@@ -699,7 +851,7 @@ class TestSlackToJiraSync:
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         result = svc.sync_slack_to_jira("FILING-999")
         assert len(result.errors) > 0
@@ -717,7 +869,7 @@ class TestSlackToJiraSync:
 
 
 # ===========================================================================
-# 11. Jira comment -> Slack reply (two-way sync)
+# 13. Jira comment -> Slack reply (two-way sync)
 # ===========================================================================
 
 class TestJiraToSlackSync:
@@ -727,13 +879,14 @@ class TestJiraToSlackSync:
             issue_key="FILING-200",
             channel_id="C002",
             thread_ts="200.0",
+            jira_base_url=JIRA_BASE,
             last_synced_jira_comment_id=last_jira_id,
         )
         store.save(link)
 
         slack = _mock_slack()
         jira = _mock_jira(jira_comments)
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
         return svc, store, slack, jira
 
     def test_new_jira_comment_synced_to_slack(self) -> None:
@@ -820,14 +973,14 @@ class TestJiraToSlackSync:
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         result = svc.sync_jira_to_slack("FILING-999")
         assert len(result.errors) > 0
 
 
 # ===========================================================================
-# 12. Infinite loop prevention
+# 14. Infinite loop prevention
 # ===========================================================================
 
 class TestLoopPrevention:
@@ -847,7 +1000,7 @@ class TestLoopPrevention:
             {"ts": "301.0", "user": "BOT1", "text": "Kapil Mohan (Jira): Some update"},
         ])
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result = svc.sync_slack_to_jira("FILING-300")
         assert result.slack_to_jira_synced == 0
@@ -875,7 +1028,7 @@ class TestLoopPrevention:
         ]
         slack = _mock_slack()
         jira = _mock_jira(jira_comments)
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result = svc.sync_jira_to_slack("FILING-300")
         assert result.jira_to_slack_synced == 0
@@ -899,7 +1052,7 @@ class TestLoopPrevention:
             {"ts": "401.0", "user": "U002", "username": "Tony", "text": "Human message"},
         ])
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         s2j = svc.sync_slack_to_jira("FILING-400")
         assert s2j.slack_to_jira_synced == 1
@@ -935,7 +1088,7 @@ class TestLoopPrevention:
         ]
         slack = _mock_slack()
         jira = _mock_jira(jira_comments)
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         j2s = svc.sync_jira_to_slack("FILING-500")
         assert j2s.jira_to_slack_synced == 1
@@ -952,9 +1105,32 @@ class TestLoopPrevention:
         assert s2j.slack_to_jira_synced == 0
         assert s2j.slack_to_jira_skipped >= 1
 
+    def test_jira_url_message_not_synced_to_jira(self) -> None:
+        """The Jira URL posted by the bot should not become a Jira comment."""
+        store = InMemorySyncLinkStore()
+        link = SyncLink(
+            issue_key="FILING-300",
+            channel_id="C003",
+            thread_ts="300.0",
+            last_synced_slack_ts="300.0",
+        )
+        store.save(link)
+
+        slack = _mock_slack([
+            {"ts": "300.0", "user": "U001", "text": "Thread start"},
+            {"ts": "301.0", "user": "U999",
+             "text": "https://acme.atlassian.net/browse/FILING-300\nSync [FILING-300]"},
+        ])
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, store, bot_user_id=None, jira_base_url=JIRA_BASE)
+
+        result = svc.sync_slack_to_jira("FILING-300")
+        assert result.slack_to_jira_synced == 0
+        jira.add_comment.assert_not_called()
+
 
 # ===========================================================================
-# 13. Duplicate prevention in continuous sync
+# 15. Duplicate prevention in continuous sync
 # ===========================================================================
 
 class TestContinuousSyncDeduplication:
@@ -975,7 +1151,7 @@ class TestContinuousSyncDeduplication:
         ]
         slack = _mock_slack(messages)
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result1 = svc.sync_slack_to_jira("FILING-600")
         assert result1.slack_to_jira_synced == 1
@@ -999,7 +1175,7 @@ class TestContinuousSyncDeduplication:
         ]
         slack = _mock_slack()
         jira = _mock_jira(comments)
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result1 = svc.sync_jira_to_slack("FILING-700")
         assert result1.jira_to_slack_synced == 1
@@ -1009,7 +1185,7 @@ class TestContinuousSyncDeduplication:
 
 
 # ===========================================================================
-# 14. sync_all convenience method
+# 16. sync_all convenience method
 # ===========================================================================
 
 class TestSyncAll:
@@ -1032,7 +1208,7 @@ class TestSyncAll:
             _adf_comment("Old", comment_id="1000"),
             _adf_comment("Jira comment", comment_id="1001", author="Kapil"),
         ])
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         s2j, j2s = svc.sync_all("FILING-800")
         assert s2j.slack_to_jira_synced == 1
@@ -1040,7 +1216,7 @@ class TestSyncAll:
 
 
 # ===========================================================================
-# 15. get_link / get_link_by_thread
+# 17. get_link / get_link_by_thread
 # ===========================================================================
 
 class TestGetLink:
@@ -1048,7 +1224,7 @@ class TestGetLink:
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -1063,7 +1239,7 @@ class TestGetLink:
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -1078,14 +1254,14 @@ class TestGetLink:
         store = InMemorySyncLinkStore()
         slack = _mock_slack()
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store)
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
 
         assert svc.get_link("FILING-999") is None
         assert svc.get_link_by_thread("C999", "0.0") is None
 
 
 # ===========================================================================
-# 16. Edge cases
+# 18. Edge cases
 # ===========================================================================
 
 class TestEdgeCases:
@@ -1093,7 +1269,7 @@ class TestEdgeCases:
         slack = _mock_slack()
         slack.conversations_replies.side_effect = Exception("API error")
         jira = _mock_jira()
-        svc = SyncService(slack, jira)
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
 
         result = svc.sync_after_creation(
             issue_key="FILING-1234",
@@ -1119,7 +1295,7 @@ class TestEdgeCases:
         ])
         jira = _mock_jira()
         jira.add_comment.side_effect = Exception("Jira API down")
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result = svc.sync_slack_to_jira("FILING-100")
         assert result.slack_to_jira_synced == 0
@@ -1137,7 +1313,7 @@ class TestEdgeCases:
 
         slack = _mock_slack([])
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result = svc.sync_slack_to_jira("FILING-100")
         assert result.slack_to_jira_synced == 0
@@ -1155,7 +1331,7 @@ class TestEdgeCases:
 
         slack = _mock_slack()
         jira = _mock_jira([])
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         result = svc.sync_jira_to_slack("FILING-100")
         assert result.jira_to_slack_synced == 0
@@ -1178,8 +1354,88 @@ class TestEdgeCases:
              "text": "Message with profile"},
         ])
         jira = _mock_jira()
-        svc = SyncService(slack, jira, store, bot_user_id="BOT1")
+        svc = SyncService(slack, jira, store, bot_user_id="BOT1", jira_base_url=JIRA_BASE)
 
         svc.sync_slack_to_jira("FILING-100")
         comment = jira.add_comment.call_args[0][1]
         assert "Tony Henriquez (Slack):" in comment
+
+
+# ===========================================================================
+# 19. Native Sync Thread investigation
+# ===========================================================================
+
+class TestNativeSyncThreadFallback:
+    """Verify the bot handles the absence of a native Sync Thread API correctly."""
+
+    def test_posts_jira_url_for_native_unfurl(self) -> None:
+        """The Jira URL must be posted so Jira Cloud for Slack can unfurl a card."""
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
+
+        svc.sync_after_creation(
+            issue_key="FILING-6152",
+            channel="C001",
+            thread_ts="100.0",
+        )
+        posted_text = slack.chat_postMessage.call_args.kwargs["text"]
+        assert "https://acme.atlassian.net/browse/FILING-6152" in posted_text
+
+    def test_custom_sync_still_works_when_native_unavailable(self) -> None:
+        """Two-way sync must function even though native Sync Thread cannot be triggered."""
+        store = InMemorySyncLinkStore()
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
+
+        svc.sync_after_creation(
+            issue_key="FILING-6152",
+            channel="C001",
+            thread_ts="100.0",
+        )
+        link = store.get_by_issue("FILING-6152")
+        assert link is not None
+
+        slack.conversations_replies.return_value = {
+            "messages": [
+                {"ts": "100.0", "user": "U001", "text": "Start"},
+                {"ts": "101.0", "user": "U002", "username": "Tony",
+                 "text": "New discussion point"},
+            ],
+        }
+        result = svc.sync_slack_to_jira("FILING-6152")
+        assert result.slack_to_jira_synced == 1
+
+    def test_sync_marker_url_first_line_is_valid_url(self) -> None:
+        """The first line of the sync marker must be a valid browsable URL."""
+        marker = build_sync_marker("FILING-1234", JIRA_BASE)
+        first_line = marker.split("\n")[0]
+        assert first_line.startswith("https://")
+        assert "/browse/FILING-1234" in first_line
+
+    def test_jira_base_url_stored_in_link(self) -> None:
+        store = InMemorySyncLinkStore()
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, store, jira_base_url=JIRA_BASE)
+
+        svc.sync_after_creation(
+            issue_key="FILING-1234",
+            channel="C001",
+            thread_ts="100.0",
+        )
+        link = store.get_by_issue("FILING-1234")
+        assert link.jira_base_url == JIRA_BASE
+
+    def test_result_contains_jira_url(self) -> None:
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira, jira_base_url=JIRA_BASE)
+
+        result = svc.sync_after_creation(
+            issue_key="FILING-6152",
+            channel="C001",
+            thread_ts="100.0",
+        )
+        assert result.jira_url == "https://acme.atlassian.net/browse/FILING-6152"

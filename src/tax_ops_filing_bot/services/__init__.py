@@ -10,6 +10,7 @@ from tax_ops_filing_bot.services.sync_service import (
     SyncLink,
     SyncResult,
     SyncService,
+    build_jira_issue_url,
 )
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "SyncResult",
     "SyncService",
     "apply_mapping",
+    "build_jira_issue_url",
     "enrich_draft_with_epic_children",
     "filter_messages",
     "parse_iso_date",

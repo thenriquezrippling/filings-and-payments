@@ -2,6 +2,12 @@
 
 Field names, allowed values, and Jira IDs are sourced from the live FILING
 project (key FILING, id 17112) on rippling.atlassian.net.
+
+IMPORTANT: This project does NOT use Jira's default Priority field.
+All priority/SLA information goes through the custom SLA fields:
+  - SLA Priority  (customfield_21648)
+  - SLA Tracker   (customfield_21649)
+  - SLA Status    (customfield_21651)
 """
 
 from __future__ import annotations
@@ -50,7 +56,7 @@ ISSUE_TYPE_JIRA_IDS: dict[IssueType, str] = {
 
 
 class SLAPriority(str, Enum):
-    """customfield_21648 — required for Blocker."""
+    """customfield_21648 — SLA Priority."""
 
     P0_CRITICAL = "P0 - Critical"    # id 32739
     P1_URGENT = "P1 - Urgent"        # id 32740
@@ -69,7 +75,7 @@ SLA_PRIORITY_IDS: dict[SLAPriority, str] = {
 
 
 class SLATracker(str, Enum):
-    """customfield_21649 — required for Blocker."""
+    """customfield_21649 — SLA Tracker."""
 
     SAME_DAY = "Same-Day Resolution"     # id 32744
     ONE_DAY = "1-Day Resolution"         # id 32745
@@ -86,6 +92,19 @@ SLA_TRACKER_IDS: dict[SLATracker, str] = {
     SLATracker.THREE_DAY: "32747",
     SLATracker.FOR_RETRO: "32748",
     SLATracker.WATCH_ITEM: "39616",
+}
+
+
+class SLAStatus(str, Enum):
+    """customfield_21651 — SLA Status."""
+
+    ON_TRACK = "On Track"      # id 32750
+    AT_RISK = "At Risk"        # id 32751
+
+
+SLA_STATUS_IDS: dict[SLAStatus, str] = {
+    SLAStatus.ON_TRACK: "32750",
+    SLAStatus.AT_RISK: "32751",
 }
 
 
@@ -244,9 +263,12 @@ class FilingIssueDraft(BaseModel):
     """Structured draft for a FILING Jira issue, after deterministic mapping.
 
     Fields map to actual Jira project FILING (id 17112) on rippling.atlassian.net.
+
+    NOTE: Jira's default Priority field is NOT populated.  All SLA information
+    is conveyed through SLA Priority, SLA Tracker, and SLA Status custom fields.
     """
 
-    # Standard Jira fields
+    # Standard Jira fields (no default Priority — we use SLA custom fields)
     summary: str = Field(
         ...,
         description="Jira summary (required)",
@@ -270,22 +292,14 @@ class FilingIssueDraft(BaseModel):
     )
     due_date: Optional[str] = Field(
         default=None,
-        description="Standard Jira duedate (YYYY-MM-DD) — from thread or matched filing ticket",
+        description="Standard Jira duedate (YYYY-MM-DD) — from matched filing ticket or validated thread date",
     )
     related_filing_issue_keys: list[str] = Field(
         default_factory=list,
         description="Child filing tickets under the epic to link (e.g. Relates to FILING-…)",
     )
 
-    # Required custom fields for Blocker
-    filing_period: Optional[FilingPeriod] = Field(
-        default=None,
-        description="customfield_21646 — Filing / Period",
-    )
-    year: Optional[FilingYear] = Field(
-        default=None,
-        description="customfield_21647 — Year",
-    )
+    # SLA custom fields (NOT Jira default Priority)
     sla_priority: Optional[SLAPriority] = Field(
         default=None,
         description="customfield_21648 — SLA Priority",
@@ -293,6 +307,20 @@ class FilingIssueDraft(BaseModel):
     sla_tracker: Optional[SLATracker] = Field(
         default=None,
         description="customfield_21649 — SLA Tracker",
+    )
+    sla_status: Optional[SLAStatus] = Field(
+        default=None,
+        description="customfield_21651 — SLA Status",
+    )
+
+    # Other required custom fields for Blocker
+    filing_period: Optional[FilingPeriod] = Field(
+        default=None,
+        description="customfield_21646 — Filing / Period",
+    )
+    year: Optional[FilingYear] = Field(
+        default=None,
+        description="customfield_21647 — Year",
     )
     filing_frequency: Optional[FilingFrequency] = Field(
         default=None,
@@ -332,5 +360,5 @@ class FilingIssueDraft(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     needs_mapping_review: bool = Field(
         default=False,
-        description="True when no deterministic mapping exists",
+        description="True when no deterministic mapping exists or due date is unreliable",
     )

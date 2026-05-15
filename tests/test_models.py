@@ -11,6 +11,8 @@ from tax_ops_filing_bot.models.filing import (
     IMPACT_IDS,
     ISSUE_TYPE_JIRA_IDS,
     SLA_PRIORITY_IDS,
+    SLA_STATUS_IDS,
+    SLA_TRACKER_IDS,
     FilingFrequency,
     FilingIssueDraft,
     FilingPeriod,
@@ -19,6 +21,7 @@ from tax_ops_filing_bot.models.filing import (
     IssueType,
     LLMExtraction,
     SLAPriority,
+    SLAStatus,
     SLATracker,
     ThreadMessage,
 )
@@ -44,6 +47,9 @@ class TestIssueType:
 
     def test_retro_exists(self) -> None:
         assert IssueType.RETRO.value == "Retro"
+
+    def test_executive_summary_exists(self) -> None:
+        assert IssueType.EXECUTIVE_SUMMARY.value == "Executive Summary"
 
     def test_no_bug_type(self) -> None:
         assert "Bug" not in {t.value for t in IssueType}
@@ -79,6 +85,24 @@ class TestSLAPriority:
     def test_all_have_jira_ids(self) -> None:
         for p in SLAPriority:
             assert p in SLA_PRIORITY_IDS
+
+
+class TestSLAStatus:
+    def test_on_track(self) -> None:
+        assert SLAStatus.ON_TRACK.value == "On Track"
+
+    def test_at_risk(self) -> None:
+        assert SLAStatus.AT_RISK.value == "At Risk"
+
+    def test_all_have_jira_ids(self) -> None:
+        for s in SLAStatus:
+            assert s in SLA_STATUS_IDS
+
+
+class TestSLATracker:
+    def test_all_have_jira_ids(self) -> None:
+        for t in SLATracker:
+            assert t in SLA_TRACKER_IDS
 
 
 class TestImpact:
@@ -146,8 +170,21 @@ class TestFilingIssueDraft:
         assert draft.labels == []
         assert draft.filing_period is None
         assert draft.sla_priority is None
+        assert draft.sla_status is None
         assert draft.impact is None
         assert draft.needs_mapping_review is False
+
+    def test_no_default_priority_field(self) -> None:
+        """Jira default Priority must not exist on the model."""
+        draft = FilingIssueDraft(summary="Test", description="Desc")
+        assert not hasattr(draft, "priority")
+
+    def test_has_sla_status_field(self) -> None:
+        draft = FilingIssueDraft(
+            summary="Test", description="Desc",
+            sla_status=SLAStatus.AT_RISK,
+        )
+        assert draft.sla_status == SLAStatus.AT_RISK
 
     def test_full_blocker_draft(self) -> None:
         draft = FilingIssueDraft(
@@ -159,12 +196,14 @@ class TestFilingIssueDraft:
             year=FilingYear.Y2026,
             sla_priority=SLAPriority.P0_CRITICAL,
             sla_tracker=SLATracker.SAME_DAY,
+            sla_status=SLAStatus.AT_RISK,
             filing_frequency=FilingFrequency.QUARTERLY,
             ff_client_id="12345",
             impact=Impact.ALL_CLIENTS,
             state="PA",
         )
         assert draft.sla_priority == SLAPriority.P0_CRITICAL
+        assert draft.sla_status == SLAStatus.AT_RISK
         assert draft.filing_period == FilingPeriod.Q1
         assert draft.year == FilingYear.Y2026
         assert draft.impact == Impact.ALL_CLIENTS
@@ -176,11 +215,13 @@ class TestFilingIssueDraft:
             labels=["Q126-filing-blocker"],
             filing_period=FilingPeriod.Q1,
             year=FilingYear.Y2026,
+            sla_status=SLAStatus.ON_TRACK,
         )
         data = json.loads(draft.model_dump_json())
         restored = FilingIssueDraft.model_validate(data)
         assert restored.filing_period == FilingPeriod.Q1
         assert restored.labels == ["Q126-filing-blocker"]
+        assert restored.sla_status == SLAStatus.ON_TRACK
 
     def test_summary_max_length(self) -> None:
         with pytest.raises(Exception):

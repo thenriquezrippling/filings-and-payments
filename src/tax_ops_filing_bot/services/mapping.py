@@ -4,8 +4,16 @@ Derives issue_type, labels, SLA fields, filing period/year, and parent epic
 from metadata extracted by the LLM.  All conventions are based on real tickets
 observed in the FILING project (rippling.atlassian.net).
 
+IMPORTANT: Jira's default Priority field is NOT used.  All SLA information
+goes through SLA Priority, SLA Tracker, and SLA Status custom fields.
+
+SLA rules by Work Type:
+  Blocker   → SLA Priority from due-date proximity, SLA Tracker mapped,
+              SLA Status = At Risk when past-due or P0, else On Track
+  Retro     → SLA Priority=Retro, SLA Tracker=For Retro, SLA Status=On Track
+  Others    → SLA Priority/Tracker/Status left blank
+
 Label convention for blockers: ``Q{quarter}{2-digit-year}-filing-blocker``
-  e.g. Q126-filing-blocker, Q226-filing-blocker
 Retro items: ``q{quarter}{2-digit-year}-retro-item``
 Exclusions: ``q{quarter}{2-digit-year}-exclusions``
 """
@@ -24,6 +32,7 @@ from tax_ops_filing_bot.models.filing import (
     Impact,
     IssueType,
     SLAPriority,
+    SLAStatus,
     SLATracker,
 )
 
@@ -39,6 +48,7 @@ class MappingResult:
     filing_frequency: Optional[FilingFrequency] = None
     sla_priority: Optional[SLAPriority] = None
     sla_tracker: Optional[SLATracker] = None
+    sla_status: Optional[SLAStatus] = None
     impact: Optional[Impact] = None
     parent_epic_key: Optional[str] = None
     needs_mapping_review: bool = False
@@ -130,7 +140,6 @@ def year_to_filing_year(y: int | None) -> FilingYear | None:
 
 
 def build_blocker_label(quarter: int | None, year: int | None) -> str | None:
-    """Build the period-aware blocker label: Q126-filing-blocker, Q226-filing-blocker, etc."""
     if quarter is None or year is None:
         return None
     short_year = year % 100
@@ -149,7 +158,6 @@ def build_retro_label(quarter: int | None, year: int | None) -> str | None:
 # ---------------------------------------------------------------------------
 
 def infer_impact(description: str, impact_hint: str | None) -> Impact | None:
-    """Infer Impact from the LLM hint or description signals."""
     if impact_hint:
         hint_lower = impact_hint.lower().strip()
         if "all" in hint_lower:
@@ -172,7 +180,6 @@ def infer_impact(description: str, impact_hint: str | None) -> Impact | None:
 # ---------------------------------------------------------------------------
 
 def classify_issue_type(description: str) -> IssueType:
-    """Classify issue type from description content signals."""
     desc_lower = description.lower()
 
     blocker_signals = [
@@ -225,18 +232,53 @@ def classify_issue_type(description: str) -> IssueType:
 
 
 # ---------------------------------------------------------------------------
-# SLA inference
+# SLA inference — based on due-date proximity only, NOT impact
 # ---------------------------------------------------------------------------
 
-def infer_sla_priority(issue_type: IssueType, impact: Impact | None) -> SLAPriority | None:
-    """Default SLA Priority based on issue type and impact."""
-    if issue_type != IssueType.BLOCKER:
-        return None
-    if impact == Impact.ALL_CLIENTS:
-        return SLAPriority.P0_CRITICAL
-    if impact == Impact.MULTIPLE_CLIENTS:
-        return SLAPriority.P1_URGENT
-    return SLAPriority.P1_URGENT
+def compute_blocker_sla(
+    due_date: date | None,
+    today: date,
+) -> tuple[SLAPriority | None, SLATracker | None, SLAStatus | None]:
+    """Compute SLA fields for a Blocker based purely on due-date proximity.
+
+    Rules:
+      ≤ 3 days or past due → P0 Critical / Same-Day / At Risk
+      ≤ 5 days             → P1 Urgent  / 1-Day   / On Track
+      ≤ 10 days            → P2 High    / 2-Day   / On Track
+      > 10 days            → P3 Medium  / 3-Day   / On Track
+      no due date          → None / None / None (needs_mapping_review)
+    """
+    if due_date is None:
+        return None, None, None
+
+    days_until = (due_date - today).days
+
+    if days_until <= 3:
+        priority = SLAPriority.P0_CRITICAL
+        tracker = SLATracker.SAME_DAY
+        status = SLAStatus.AT_RISK
+    elif days_until <= 5:
+        priority = SLAPriority.P1_URGENT
+        tracker = SLATracker.ONE_DAY
+        status = SLAStatus.AT_RISK if days_until < 0 else SLAStatus.ON_TRACK
+    elif days_until <= 10:
+        priority = SLAPriority.P2_HIGH
+        tracker = SLATracker.TWO_DAY
+        status = SLAStatus.ON_TRACK
+    else:
+        priority = SLAPriority.P3_MEDIUM
+        tracker = SLATracker.THREE_DAY
+        status = SLAStatus.ON_TRACK
+
+    if days_until < 0:
+        status = SLAStatus.AT_RISK
+
+    return priority, tracker, status
+
+
+def compute_retro_sla() -> tuple[SLAPriority, SLATracker, SLAStatus]:
+    """Retro always gets fixed SLA values."""
+    return SLAPriority.RETRO, SLATracker.FOR_RETRO, SLAStatus.ON_TRACK
 
 
 def infer_sla_tracker(sla_priority: SLAPriority | None) -> SLATracker | None:
@@ -249,23 +291,6 @@ def infer_sla_tracker(sla_priority: SLAPriority | None) -> SLATracker | None:
         SLAPriority.P3_MEDIUM: SLATracker.THREE_DAY,
         SLAPriority.RETRO: SLATracker.FOR_RETRO,
     }.get(sla_priority)
-
-
-def escalate_sla_for_due_date(
-    issue_type: IssueType,
-    sla_priority: SLAPriority | None,
-    *,
-    explicit_due_date: date | None,
-    today: date | None,
-) -> SLAPriority | None:
-    """Raise Blocker SLA when the filing due date is within three days or past."""
-    if issue_type != IssueType.BLOCKER:
-        return sla_priority
-    if explicit_due_date is None or today is None:
-        return sla_priority
-    if (explicit_due_date - today).days > 3:
-        return sla_priority
-    return SLAPriority.P0_CRITICAL
 
 
 def infer_filing_frequency(
@@ -288,10 +313,15 @@ def apply_mapping(
     description: str,
     tax_period: str | None = None,
     impact_hint: str | None = None,
-    explicit_due_date: date | None = None,
+    due_date: date | None = None,
     today: date | None = None,
 ) -> MappingResult:
-    """Apply deterministic rules to produce Jira-ready fields from extracted metadata."""
+    """Apply deterministic rules to produce Jira-ready fields from extracted metadata.
+
+    SLA fields depend ONLY on Work Type and due-date proximity, never on impact.
+    Impact is recorded as context but does not influence SLA Priority.
+    """
+    today_eff = today or date.today()
 
     quarter, year, explicit_quarter = parse_period_meta(tax_period)
     issue_type = classify_issue_type(description)
@@ -301,14 +331,15 @@ def apply_mapping(
     filing_frequency = infer_filing_frequency(quarter, explicit_quarter)
 
     impact = infer_impact(description, impact_hint)
-    sla_priority = infer_sla_priority(issue_type, impact)
-    sla_priority = escalate_sla_for_due_date(
-        issue_type,
-        sla_priority,
-        explicit_due_date=explicit_due_date,
-        today=today,
-    )
-    sla_tracker = infer_sla_tracker(sla_priority)
+
+    sla_priority: SLAPriority | None = None
+    sla_tracker: SLATracker | None = None
+    sla_status: SLAStatus | None = None
+
+    if issue_type == IssueType.BLOCKER:
+        sla_priority, sla_tracker, sla_status = compute_blocker_sla(due_date, today_eff)
+    elif issue_type == IssueType.RETRO:
+        sla_priority, sla_tracker, sla_status = compute_retro_sla()
 
     labels: list[str] = []
     if issue_type == IssueType.BLOCKER:
@@ -324,6 +355,8 @@ def apply_mapping(
             labels.append(exclusion_label)
 
     needs_review = filing_period is None or filing_year is None
+    if issue_type == IssueType.BLOCKER and due_date is None:
+        needs_review = True
 
     return MappingResult(
         issue_type=issue_type,
@@ -333,6 +366,7 @@ def apply_mapping(
         filing_frequency=filing_frequency,
         sla_priority=sla_priority,
         sla_tracker=sla_tracker,
+        sla_status=sla_status,
         impact=impact,
         parent_epic_key=None,
         needs_mapping_review=needs_review,

@@ -15,12 +15,12 @@ from tax_ops_filing_bot.models.issue_draft import (
 
 def _sample_draft(**overrides) -> FilingIssueDraft:
     defaults = dict(
-        summary="Q1 CA state filing",
-        description="File quarterly return for California.",
-        issue_type=IssueType.TASK,
+        summary="Pittsburgh EIT filing blocked",
+        description="Cannot complete EIT filing for Pittsburgh municipality.",
+        issue_type=IssueType.BLOCKER,
         priority=IssuePriority.HIGH,
-        labels=["q1-filing", "state-ca"],
-        parent_key="FILING-100",
+        labels=["local-tax", "pittsburgh"],
+        parent_key="FILING-101",
     )
     defaults.update(overrides)
     return FilingIssueDraft(**defaults)
@@ -32,14 +32,14 @@ class TestBuildCreatePayload:
         payload = build_create_payload(draft)
         fields = payload["fields"]
         assert fields["project"]["key"] == "FILING"
-        assert fields["summary"] == "Q1 CA state filing"
-        assert fields["issuetype"]["name"] == "Task"
+        assert fields["summary"] == "Pittsburgh EIT filing blocked"
+        assert fields["issuetype"]["name"] == "Blocker"
         assert fields["priority"]["name"] == "High"
 
     def test_labels(self) -> None:
         draft = _sample_draft()
         payload = build_create_payload(draft)
-        assert payload["fields"]["labels"] == ["q1-filing", "state-ca"]
+        assert payload["fields"]["labels"] == ["local-tax", "pittsburgh"]
 
     def test_no_labels(self) -> None:
         draft = _sample_draft(labels=[])
@@ -47,9 +47,9 @@ class TestBuildCreatePayload:
         assert "labels" not in payload["fields"]
 
     def test_parent_key(self) -> None:
-        draft = _sample_draft(parent_key="FILING-100")
+        draft = _sample_draft(parent_key="FILING-101")
         payload = build_create_payload(draft)
-        assert payload["fields"]["parent"]["key"] == "FILING-100"
+        assert payload["fields"]["parent"]["key"] == "FILING-101"
 
     def test_no_parent_key(self) -> None:
         draft = _sample_draft(parent_key=None)
@@ -69,6 +69,22 @@ class TestBuildCreatePayload:
         assert desc["version"] == 1
         assert desc["content"][0]["type"] == "paragraph"
         assert desc["content"][0]["content"][0]["text"] == draft.description
+
+    def test_all_work_types(self) -> None:
+        for wt in IssueType:
+            draft = _sample_draft(issue_type=wt)
+            payload = build_create_payload(draft)
+            assert payload["fields"]["issuetype"]["name"] == wt.value
+
+    def test_filing_exception_type(self) -> None:
+        draft = _sample_draft(issue_type=IssueType.FILING_EXCEPTION)
+        payload = build_create_payload(draft)
+        assert payload["fields"]["issuetype"]["name"] == "Filing Exception"
+
+    def test_feature_request_type(self) -> None:
+        draft = _sample_draft(issue_type=IssueType.FEATURE_REQUEST)
+        payload = build_create_payload(draft)
+        assert payload["fields"]["issuetype"]["name"] == "Feature Request"
 
 
 class TestBuildCommentPayload:

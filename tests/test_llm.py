@@ -25,6 +25,11 @@ class TestPrompts:
         assert "FILING" in SYSTEM_PROMPT
         assert "summary" in SYSTEM_PROMPT
         assert "JSON" in SYSTEM_PROMPT
+        assert "Blocker" in SYSTEM_PROMPT
+        assert "Filing Exception" in SYSTEM_PROMPT
+        assert "Feature Request" in SYSTEM_PROMPT
+        assert "Retro" in SYSTEM_PROMPT
+        assert "Executive Summary" in SYSTEM_PROMPT
 
     def test_user_template_substitution(self) -> None:
         rendered = USER_TEMPLATE.format(thread_text="My tax thread")

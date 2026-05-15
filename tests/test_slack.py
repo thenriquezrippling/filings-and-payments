@@ -72,12 +72,12 @@ class TestNormalizeThreadMessages:
 class TestBuildConfirmationBlocks:
     def _sample_draft(self) -> FilingIssueDraft:
         return FilingIssueDraft(
-            summary="Q1 CA filing",
-            description="File quarterly return for California.",
-            issue_type=IssueType.TASK,
+            summary="Pittsburgh EIT filing blocked",
+            description="Cannot complete EIT filing for Pittsburgh municipality.",
+            issue_type=IssueType.BLOCKER,
             priority=IssuePriority.HIGH,
-            labels=["q1-filing", "state-ca"],
-            parent_key="FILING-100",
+            labels=["local-tax", "pittsburgh"],
+            parent_key="FILING-101",
             assignee_hint="alice",
         )
 
@@ -100,9 +100,9 @@ class TestBuildConfirmationBlocks:
         )
         fields = blocks[1]["fields"]
         field_texts = [f["text"] for f in fields]
-        assert any("Q1 CA filing" in t for t in field_texts)
+        assert any("Pittsburgh EIT filing blocked" in t for t in field_texts)
         assert any("High" in t for t in field_texts)
-        assert any("q1-filing" in t for t in field_texts)
+        assert any("local-tax" in t for t in field_texts)
 
     def test_action_buttons(self) -> None:
         blocks = build_confirmation_blocks(

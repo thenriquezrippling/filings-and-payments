@@ -8,12 +8,22 @@ structured fields for a Jira issue in the FILING project.
 
 Rules:
 - summary: concise one-line title (max 255 chars)
-- description: markdown body with relevant context from the thread
-- issue_type: one of Task, Bug, Story, Sub-task (default Task)
+- description: markdown body with relevant context from the thread. \
+Do NOT include implementation notes, TODO comments, or internal markers.
+- issue_type: one of Blocker, Filing Exception, Feature Request, Retro, \
+Executive Summary (these are the configured Work Types in FILING)
 - priority: one of Highest, High, Medium, Low, Lowest (default Medium)
-- labels: list of short lowercase tags (e.g. ["q1-filing", "state-ca"])
-- parent_key: epic key if mentioned (e.g. "FILING-100"), else null
+- labels: list of short lowercase tags derived from thread context \
+(e.g. ["local-tax", "pittsburgh", "quarterly"])
+- parent_key: epic key if determinable from context (e.g. "FILING-101"), else null
 - assignee_hint: Slack display name if someone volunteered or was assigned, else null
+
+Work Type guidance:
+- Blocker: anything preventing filing (EIT issues, deadlines, penalties, system blocks)
+- Filing Exception: errors, rejections, mismatches in a filing submission
+- Feature Request: enhancements or new capabilities requested
+- Retro: retrospectives, post-mortems, lessons learned, root cause analysis
+- Executive Summary: status reports, weekly updates, executive summaries
 
 Return ONLY valid JSON matching the schema. No markdown fences."""
 

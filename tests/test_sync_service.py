@@ -18,13 +18,14 @@ from __future__ import annotations
 from unittest.mock import MagicMock, call
 
 from tax_ops_filing_bot.services.sync_service import (
-    INITIAL_LINK_COMMENT,
+    LINK_COMMENT_MARKER,
     SYNCED_FROM_SLACK_MARKER,
     ContinuousSyncResult,
     InMemorySyncLinkStore,
     SyncLink,
     SyncResult,
     SyncService,
+    build_initial_link_comment,
     build_jira_comment_adf,
     build_jira_to_slack_message,
     build_slack_to_jira_comment,
@@ -129,8 +130,14 @@ class TestThreadHasSyncMarker:
 # ===========================================================================
 
 class TestJiraHasLinkComment:
-    def test_found(self) -> None:
-        comments = [_adf_comment(INITIAL_LINK_COMMENT)]
+    def test_found_with_permalink(self) -> None:
+        comment_text = build_initial_link_comment("https://slack.com/archives/C001/p123456")
+        comments = [_adf_comment(comment_text)]
+        assert jira_has_link_comment(comments) is True
+
+    def test_found_without_permalink(self) -> None:
+        comment_text = build_initial_link_comment(None)
+        comments = [_adf_comment(comment_text)]
         assert jira_has_link_comment(comments) is True
 
     def test_not_found(self) -> None:
@@ -154,6 +161,48 @@ class TestJiraHasThreadComment:
 # ===========================================================================
 # 5. Message format helpers
 # ===========================================================================
+
+class TestBuildInitialLinkComment:
+    def test_includes_permalink(self) -> None:
+        result = build_initial_link_comment("https://slack.com/archives/C001/p123456")
+        assert "https://slack.com/archives/C001/p123456" in result
+
+    def test_includes_marker_text(self) -> None:
+        result = build_initial_link_comment("https://slack.com/archives/C001/p123456")
+        assert LINK_COMMENT_MARKER in result
+
+    def test_starts_with_linked_slack_thread(self) -> None:
+        result = build_initial_link_comment("https://slack.com/archives/C001/p123456")
+        assert result.startswith("Linked Slack thread:")
+
+    def test_format_with_permalink(self) -> None:
+        result = build_initial_link_comment("https://slack.com/archives/C001/p123456")
+        expected = (
+            "Linked Slack thread: https://slack.com/archives/C001/p123456\n"
+            "Linked Slack thread for ongoing discussion and updates."
+        )
+        assert result == expected
+
+    def test_format_without_permalink(self) -> None:
+        result = build_initial_link_comment(None)
+        expected = (
+            "Linked Slack thread:\n"
+            "Linked Slack thread for ongoing discussion and updates."
+        )
+        assert result == expected
+
+    def test_no_channel_id_in_output(self) -> None:
+        result = build_initial_link_comment("https://slack.com/archives/C001/p123456")
+        lines = result.split("\n")
+        assert all("C001" not in line for line in lines if "slack.com" not in line)
+
+    def test_no_verbose_metadata(self) -> None:
+        result = build_initial_link_comment("https://slack.com/archives/C001/p123456")
+        assert "timestamp" not in result.lower()
+        assert "transcript" not in result.lower()
+        assert "summary" not in result.lower()
+        assert "trigger" not in result.lower()
+
 
 class TestBuildSlackToJiraComment:
     def test_format(self) -> None:
@@ -257,7 +306,7 @@ class TestSyncServiceAfterCreation:
         call_kwargs = slack.chat_postMessage.call_args
         assert "Sync [FILING-1234]" in call_kwargs.kwargs.get("text", "")
 
-    def test_adds_minimal_jira_comment(self) -> None:
+    def test_adds_jira_comment_with_permalink(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
         svc = SyncService(slack, jira)
@@ -266,14 +315,34 @@ class TestSyncServiceAfterCreation:
             issue_key="FILING-1234",
             channel="C001",
             thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
             transcript="EIT issue found",
         )
         assert result.jira_comment_added is True
         jira.add_comment.assert_called_once()
         comment_text = jira.add_comment.call_args[0][1]
-        assert comment_text == INITIAL_LINK_COMMENT
+        assert "https://slack.com/archives/C001/p123456" in comment_text
+        assert LINK_COMMENT_MARKER in comment_text
+        assert comment_text == build_initial_link_comment(
+            "https://slack.com/archives/C001/p123456"
+        )
 
-    def test_minimal_jira_comment_has_no_channel_id(self) -> None:
+    def test_jira_comment_without_permalink(self) -> None:
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira)
+
+        result = svc.sync_after_creation(
+            issue_key="FILING-1234",
+            channel="C001",
+            thread_ts="123.456",
+        )
+        assert result.jira_comment_added is True
+        comment_text = jira.add_comment.call_args[0][1]
+        assert LINK_COMMENT_MARKER in comment_text
+        assert comment_text == build_initial_link_comment(None)
+
+    def test_minimal_jira_comment_has_no_standalone_channel_id(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
         svc = SyncService(slack, jira)
@@ -282,9 +351,13 @@ class TestSyncServiceAfterCreation:
             issue_key="FILING-1234",
             channel="C001",
             thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
         )
         comment_text = jira.add_comment.call_args[0][1]
-        assert "C001" not in comment_text
+        stripped = comment_text.replace(
+            "https://slack.com/archives/C001/p123456", ""
+        )
+        assert "C001" not in stripped
 
     def test_minimal_jira_comment_has_no_thread_ts(self) -> None:
         slack = _mock_slack()
@@ -295,9 +368,45 @@ class TestSyncServiceAfterCreation:
             issue_key="FILING-1234",
             channel="C001",
             thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
         )
         comment_text = jira.add_comment.call_args[0][1]
         assert "123.456" not in comment_text
+
+    def test_minimal_jira_comment_has_no_transcript(self) -> None:
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira)
+
+        svc.sync_after_creation(
+            issue_key="FILING-1234",
+            channel="C001",
+            thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
+            transcript="EIT issue found in Pittsburgh",
+        )
+        comment_text = jira.add_comment.call_args[0][1]
+        assert "EIT issue found" not in comment_text
+        assert "Pittsburgh" not in comment_text
+
+    def test_minimal_jira_comment_has_no_verbose_metadata(self) -> None:
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira)
+
+        svc.sync_after_creation(
+            issue_key="FILING-1234",
+            channel="C001",
+            thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
+            transcript="Some transcript content",
+        )
+        comment_text = jira.add_comment.call_args[0][1]
+        assert "channel" not in comment_text.lower() or "Linked Slack" in comment_text
+        assert "timestamp" not in comment_text.lower()
+        assert "transcript" not in comment_text.lower()
+        assert "summary" not in comment_text.lower()
+        assert "table" not in comment_text.lower()
 
     def test_creates_sync_link(self) -> None:
         store = InMemorySyncLinkStore()
@@ -382,7 +491,22 @@ class TestSyncServiceSyncOnly:
         link = store.get_by_issue("FILING-1234")
         assert link is not None
 
-    def test_sync_only_posts_minimal_jira_comment(self) -> None:
+    def test_sync_only_posts_jira_comment_with_permalink(self) -> None:
+        slack = _mock_slack()
+        jira = _mock_jira()
+        svc = SyncService(slack, jira)
+
+        svc.sync_existing(
+            issue_key="FILING-1234",
+            channel="C001",
+            thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
+        )
+        comment_text = jira.add_comment.call_args[0][1]
+        assert "https://slack.com/archives/C001/p123456" in comment_text
+        assert LINK_COMMENT_MARKER in comment_text
+
+    def test_sync_only_posts_minimal_jira_comment_without_permalink(self) -> None:
         slack = _mock_slack()
         jira = _mock_jira()
         svc = SyncService(slack, jira)
@@ -393,7 +517,8 @@ class TestSyncServiceSyncOnly:
             thread_ts="123.456",
         )
         comment_text = jira.add_comment.call_args[0][1]
-        assert comment_text == INITIAL_LINK_COMMENT
+        assert LINK_COMMENT_MARKER in comment_text
+        assert comment_text == build_initial_link_comment(None)
 
 
 # ===========================================================================
@@ -419,9 +544,12 @@ class TestSyncDeduplication:
         slack.chat_postMessage.assert_not_called()
 
     def test_duplicate_jira_link_comment_not_added(self) -> None:
+        existing_comment = build_initial_link_comment(
+            "https://slack.com/archives/C001/p123456"
+        )
         slack = _mock_slack()
         jira = _mock_jira(
-            existing_comments=[_adf_comment(INITIAL_LINK_COMMENT, comment_id="500")],
+            existing_comments=[_adf_comment(existing_comment, comment_id="500")],
         )
         svc = SyncService(slack, jira)
 
@@ -429,6 +557,7 @@ class TestSyncDeduplication:
             issue_key="FILING-1234",
             channel="C001",
             thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
             transcript="EIT issue found",
         )
         assert result.skipped_comment is True
@@ -436,11 +565,14 @@ class TestSyncDeduplication:
         jira.add_comment.assert_not_called()
 
     def test_both_already_exist(self) -> None:
+        existing_comment = build_initial_link_comment(
+            "https://slack.com/archives/C001/p123456"
+        )
         slack = _mock_slack(
             existing_messages=[{"text": "Sync [FILING-1234]", "ts": "100.0"}],
         )
         jira = _mock_jira(
-            existing_comments=[_adf_comment(INITIAL_LINK_COMMENT, comment_id="500")],
+            existing_comments=[_adf_comment(existing_comment, comment_id="500")],
         )
         svc = SyncService(slack, jira)
 
@@ -448,6 +580,7 @@ class TestSyncDeduplication:
             issue_key="FILING-1234",
             channel="C001",
             thread_ts="123.456",
+            permalink="https://slack.com/archives/C001/p123456",
             transcript="EIT issue found",
         )
         assert result.skipped_marker is True
@@ -647,9 +780,12 @@ class TestJiraToSlackSync:
         slack.chat_postMessage.assert_not_called()
 
     def test_initial_link_comment_skipped(self) -> None:
+        link_comment = build_initial_link_comment(
+            "https://slack.com/archives/C002/p200000"
+        )
         svc, store, slack, jira = self._setup(jira_comments=[
             _adf_comment("Old", comment_id="500"),
-            _adf_comment(INITIAL_LINK_COMMENT, comment_id="501", author="bot-user"),
+            _adf_comment(link_comment, comment_id="501", author="bot-user"),
         ])
 
         result = svc.sync_jira_to_slack("FILING-200")

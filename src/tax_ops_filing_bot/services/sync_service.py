@@ -41,10 +41,15 @@ _SYNC_COMMAND_RE = re.compile(
     re.IGNORECASE,
 )
 
-INITIAL_LINK_COMMENT = (
-    "Linked Slack thread: Linked Slack thread for ongoing discussion and updates."
-)
+LINK_COMMENT_MARKER = "Linked Slack thread for ongoing discussion and updates."
 SYNCED_FROM_SLACK_MARKER = "[synced-from-slack]"
+
+
+def build_initial_link_comment(permalink: str | None = None) -> str:
+    """Build the initial Jira link comment with the Slack permalink."""
+    if permalink:
+        return f"Linked Slack thread: {permalink}\n{LINK_COMMENT_MARKER}"
+    return f"Linked Slack thread:\n{LINK_COMMENT_MARKER}"
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +129,7 @@ def jira_has_link_comment(comments: list[dict[str, Any]]) -> bool:
     """Check if any Jira comment contains the initial link marker."""
     for comment in comments:
         body_text = _extract_comment_text(comment)
-        if INITIAL_LINK_COMMENT in body_text:
+        if LINK_COMMENT_MARKER in body_text:
             return True
     return False
 
@@ -166,7 +171,7 @@ def _is_synced_from_slack(comment: dict[str, Any]) -> bool:
 def _is_initial_link_comment(comment: dict[str, Any]) -> bool:
     """True if the Jira comment is the initial link comment."""
     text = _extract_comment_text(comment)
-    return INITIAL_LINK_COMMENT in text
+    return LINK_COMMENT_MARKER in text
 
 
 def build_slack_to_jira_comment(author: str, text: str) -> str:
@@ -347,7 +352,9 @@ class SyncService:
             skipped_comment = True
         else:
             try:
-                self._jira.add_comment(issue_key, INITIAL_LINK_COMMENT)
+                self._jira.add_comment(
+                    issue_key, build_initial_link_comment(permalink),
+                )
                 comment_added = True
             except Exception:
                 logger.exception("Failed to add initial Jira link comment")

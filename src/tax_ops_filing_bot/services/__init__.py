@@ -4,12 +4,21 @@ from tax_ops_filing_bot.services.filing_reference import EpicChildIssue, enrich_
 from tax_ops_filing_bot.services.intake import IntakeService, parse_iso_date
 from tax_ops_filing_bot.services.mapping import MappingResult, apply_mapping
 from tax_ops_filing_bot.services.message_filter import filter_messages
-from tax_ops_filing_bot.services.sync_service import SyncService, SyncResult
+from tax_ops_filing_bot.services.sync_service import (
+    ContinuousSyncResult,
+    InMemorySyncLinkStore,
+    SyncLink,
+    SyncResult,
+    SyncService,
+)
 
 __all__ = [
+    "ContinuousSyncResult",
     "EpicChildIssue",
+    "InMemorySyncLinkStore",
     "IntakeService",
     "MappingResult",
+    "SyncLink",
     "SyncResult",
     "SyncService",
     "apply_mapping",

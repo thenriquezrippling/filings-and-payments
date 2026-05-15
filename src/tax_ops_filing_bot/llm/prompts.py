@@ -35,6 +35,8 @@ Return a JSON object with exactly these fields:
 - reporter (string|null): Slack user who raised the issue.
 - impact_scope (string|null): One of "all clients", "multiple clients", \
   "single client", or null if not determinable.
+- due_date (string|null): Filing or issue due date as ISO YYYY-MM-DD only if \
+  the thread states a calendar date (deadline, due date, file-by date).
 
 STRICT RULES:
 1. The description MUST contain ONLY operational filing issue content.

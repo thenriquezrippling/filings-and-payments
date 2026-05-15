@@ -45,3 +45,6 @@ class TestSystemPrompt:
 
     def test_asks_for_ff_client_id(self) -> None:
         assert "ff_client_id" in SYSTEM_PROMPT
+
+    def test_asks_for_due_date(self) -> None:
+        assert "due_date" in SYSTEM_PROMPT

@@ -15,7 +15,8 @@ from tax_ops_filing_bot.models.filing import (
     SLATracker,
     ThreadMessage,
 )
-from tax_ops_filing_bot.services.intake import IntakeService, _sanitize_description
+from tax_ops_filing_bot.services.filing_reference import EpicChildIssue
+from tax_ops_filing_bot.services.intake import IntakeService, _sanitize_description, parse_iso_date
 
 
 class FakeLLMClient:
@@ -78,6 +79,39 @@ PITTSBURGH_THREAD = [
         ),
     ),
 ]
+
+
+class TestParseIsoDate:
+    def test_valid(self) -> None:
+        assert parse_iso_date("2026-05-15") is not None
+        assert parse_iso_date("2026-05-15").isoformat() == "2026-05-15"
+
+    def test_invalid(self) -> None:
+        assert parse_iso_date("not-a-date") is None
+
+
+class TestEpicChildEnrichment:
+    def test_related_keys_and_due_from_child(self) -> None:
+        children = [
+            EpicChildIssue(
+                key="FILING-5001",
+                summary=(
+                    "Pennsylvania Q1 2026 Quarterly Local — "
+                    "PALOCALTREASURERCITYOFPITTSBURGHPAYEXPFILE"
+                ),
+                issue_type_name="Quarterly",
+                duedate="2026-04-30",
+            ),
+        ]
+        fake_llm = FakeLLMClient(PITTSBURGH_EXTRACTION)
+        service = IntakeService(fake_llm)
+        draft = service.create_draft(
+            PITTSBURGH_THREAD,
+            channel="personal-ai-testing",
+            epic_child_issues=children,
+        )
+        assert draft.related_filing_issue_keys == ["FILING-5001"]
+        assert draft.due_date == "2026-04-30"
 
 
 class TestPittsburghEITDraft:

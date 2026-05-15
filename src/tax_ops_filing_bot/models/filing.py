@@ -230,6 +230,10 @@ class LLMExtraction(BaseModel):
         default=None,
         description="Impact hint: 'all clients', 'multiple clients', 'single client', or null",
     )
+    due_date: Optional[str] = Field(
+        default=None,
+        description="Filing or operational due date as ISO YYYY-MM-DD if stated in the thread",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +267,14 @@ class FilingIssueDraft(BaseModel):
     parent_epic_key: Optional[str] = Field(
         default=None,
         description="Parent Epic key (e.g. FILING-2589 for Pennsylvania)",
+    )
+    due_date: Optional[str] = Field(
+        default=None,
+        description="Standard Jira duedate (YYYY-MM-DD) — from thread or matched filing ticket",
+    )
+    related_filing_issue_keys: list[str] = Field(
+        default_factory=list,
+        description="Child filing tickets under the epic to link (e.g. Relates to FILING-…)",
     )
 
     # Required custom fields for Blocker

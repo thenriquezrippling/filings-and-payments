@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 import logging
-from typing import Any, Protocol
+from datetime import date
+from typing import Any, Protocol, Sequence
 
 from tax_ops_filing_bot.llm.prompts import SYSTEM_PROMPT, build_messages
 from tax_ops_filing_bot.models.filing import FilingIssueDraft, LLMExtraction, ThreadMessage
+from tax_ops_filing_bot.services.filing_reference import EpicChildIssue, enrich_draft_with_epic_children
 from tax_ops_filing_bot.services.mapping import apply_mapping
 from tax_ops_filing_bot.services.message_filter import filter_messages
 
@@ -33,6 +35,17 @@ DESCRIPTION_BLACKLIST_PATTERNS: list[re.Pattern[str]] = [
         r"\bbot[\s-]generated\b",
     ]
 ]
+
+
+def parse_iso_date(raw: str | None) -> date | None:
+    """Parse YYYY-MM-DD from LLM output; ignores trailing time if present."""
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()[:10]
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        return None
 
 
 def _sanitize_description(description: str) -> str:
@@ -80,6 +93,8 @@ class IntakeService:
         messages: list[ThreadMessage],
         *,
         channel: str = "unknown",
+        epic_child_issues: Sequence[EpicChildIssue] | None = None,
+        today: date | None = None,
     ) -> FilingIssueDraft:
         """Produce a FilingIssueDraft from thread messages.
 
@@ -88,6 +103,10 @@ class IntakeService:
         2. Send clean thread text to LLM for extraction
         3. Apply deterministic mapping for issue_type, labels, SLA fields, etc.
         4. Sanitize description to remove any leaked implementation noise
+
+        When ``epic_child_issues`` lists Quarterly / Monthly / Semi-Monthly tickets
+        under the parent epic, the draft is enriched with ``related_filing_issue_keys``
+        and may inherit ``duedate`` from a uniquely matched child.
         """
         clean_messages = filter_messages(messages)
         if not clean_messages:
@@ -103,20 +122,27 @@ class IntakeService:
             system=SYSTEM_PROMPT,
         )
 
+        today_eff = today or date.today()
+        due_date_parsed = parse_iso_date(extraction.due_date)
+
         mapping = apply_mapping(
             description=extraction.description,
             tax_period=extraction.tax_period,
             impact_hint=extraction.impact_scope,
+            explicit_due_date=due_date_parsed,
+            today=today_eff,
         )
 
         sanitized_description = _sanitize_description(extraction.description)
 
-        return FilingIssueDraft(
+        draft = FilingIssueDraft(
             summary=extraction.summary,
             description=sanitized_description,
             issue_type=mapping.issue_type,
             labels=mapping.labels,
             parent_epic_key=mapping.parent_epic_key,
+            due_date=due_date_parsed.isoformat() if due_date_parsed else None,
+            related_filing_issue_keys=[],
             filing_period=mapping.filing_period,
             year=mapping.year,
             sla_priority=mapping.sla_priority,
@@ -133,3 +159,6 @@ class IntakeService:
             confidence=extraction.confidence,
             needs_mapping_review=mapping.needs_mapping_review,
         )
+        if epic_child_issues:
+            draft = enrich_draft_with_epic_children(draft, epic_child_issues)
+        return draft

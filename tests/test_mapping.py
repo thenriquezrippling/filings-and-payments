@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from tax_ops_filing_bot.models.filing import (
     FilingFrequency,
     FilingPeriod,
@@ -16,8 +18,11 @@ from tax_ops_filing_bot.services.mapping import (
     build_blocker_label,
     build_retro_label,
     classify_issue_type,
+    escalate_sla_for_due_date,
+    infer_filing_frequency,
     infer_impact,
     parse_period,
+    parse_period_meta,
 )
 
 
@@ -36,6 +41,43 @@ class TestParsePeriod:
 
     def test_none(self) -> None:
         assert parse_period(None) == (None, None)
+
+    def test_april_2026_maps_to_q2(self) -> None:
+        assert parse_period("April 2026") == (2, 2026)
+
+
+class TestParsePeriodMeta:
+    def test_explicit_quarter(self) -> None:
+        assert parse_period_meta("Q1 2026") == (1, 2026, True)
+
+    def test_month_text_not_explicit_quarter(self) -> None:
+        assert parse_period_meta("April 2026") == (2, 2026, False)
+
+
+class TestInferFilingFrequency:
+    def test_explicit_quarter(self) -> None:
+        assert infer_filing_frequency(1, True) == FilingFrequency.QUARTERLY
+
+    def test_month_derived_quarter(self) -> None:
+        assert infer_filing_frequency(2, False) == FilingFrequency.MONTHLY
+
+
+class TestDueDateSlaEscalation:
+    def test_escalates_within_three_days(self) -> None:
+        assert escalate_sla_for_due_date(
+            IssueType.BLOCKER,
+            SLAPriority.P3_MEDIUM,
+            explicit_due_date=date(2026, 5, 17),
+            today=date(2026, 5, 15),
+        ) == SLAPriority.P0_CRITICAL
+
+    def test_no_escalation_beyond_window(self) -> None:
+        assert escalate_sla_for_due_date(
+            IssueType.BLOCKER,
+            SLAPriority.P1_URGENT,
+            explicit_due_date=date(2026, 5, 25),
+            today=date(2026, 5, 15),
+        ) == SLAPriority.P1_URGENT
 
 
 class TestBuildBlockerLabel:
@@ -170,6 +212,28 @@ class TestApplyMappingPittsburghEIT:
 
     def test_no_needs_mapping_review(self) -> None:
         assert self._get_result().needs_mapping_review is False
+
+    def test_imminent_due_escalates_even_when_impact_unknown(self) -> None:
+        result = apply_mapping(
+            description="Something is wrong with a filing",
+            tax_period="Q1 2026",
+            impact_hint=None,
+            explicit_due_date=date(2026, 5, 16),
+            today=date(2026, 5, 15),
+        )
+        assert result.sla_priority == SLAPriority.P0_CRITICAL
+        assert result.sla_tracker == SLATracker.SAME_DAY
+
+
+class TestApplyMappingMonthly:
+    def test_april_2026_is_monthly_with_q2_period(self) -> None:
+        result = apply_mapping(
+            description="April 2026 withholding looks wrong",
+            tax_period="April 2026",
+        )
+        assert result.filing_frequency == FilingFrequency.MONTHLY
+        assert result.filing_period == FilingPeriod.Q2
+        assert result.year == FilingYear.Y2026
 
 
 class TestApplyMappingQ2:

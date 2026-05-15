@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional
 
 from tax_ops_filing_bot.models.filing import (
@@ -51,21 +52,71 @@ _QUARTER_RE = re.compile(
     r"(?:(\d)[Qq]\s*(\d{4}))|(?:[Qq](\d)\s*(\d{4}))", re.IGNORECASE,
 )
 _YEAR_RE = re.compile(r"\b(202[4-9])\b")
+_MONTH_RE = re.compile(
+    r"\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|"
+    r"july|jul|august|aug|september|sep|sept|october|oct|november|nov|"
+    r"december|dec)\s+(\d{4})\b",
+    re.IGNORECASE,
+)
+_MMYYYY_RE = re.compile(r"\b(0?[1-9]|1[0-2])[/-](\d{4})\b")
 
 
-def parse_period(raw: str | None) -> tuple[int | None, int | None]:
-    """Extract (quarter 1-4, four-digit year) from free-text period string."""
+_MONTH_NAME_TO_NUM: dict[str, int] = {
+    "january": 1, "jan": 1,
+    "february": 2, "feb": 2,
+    "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
+
+
+def _parse_month_year(raw: str) -> tuple[int | None, int | None]:
+    m = _MONTH_RE.search(raw)
+    if m:
+        month = _MONTH_NAME_TO_NUM[m.group(1).lower()]
+        return month, int(m.group(2))
+    m2 = _MMYYYY_RE.search(raw)
+    if m2:
+        return int(m2.group(1)), int(m2.group(2))
+    return None, None
+
+
+def parse_period_meta(raw: str | None) -> tuple[int | None, int | None, bool]:
+    """Return (quarter 1-4 or inferred, year, explicit_quarter).
+
+    ``explicit_quarter`` is True when the text names a quarter (1Q2026, Q2 2026).
+    When a calendar month is used (April 2026), quarter is the fiscal calendar
+    quarter (1–4) for Jira Filing / Period alignment and ``explicit_quarter`` is
+    False so filing frequency can be set to Monthly.
+    """
     if not raw:
-        return None, None
+        return None, None, False
     m = _QUARTER_RE.search(raw)
     if m:
         q = int(m.group(1) or m.group(3))
         y = int(m.group(2) or m.group(4))
-        return q, y
+        return q, y, True
+    month, y = _parse_month_year(raw)
+    if month is not None and y is not None:
+        q = (month - 1) // 3 + 1
+        return q, y, False
     ym = _YEAR_RE.search(raw)
     if ym:
-        return None, int(ym.group(1))
-    return None, None
+        return None, int(ym.group(1)), False
+    return None, None, False
+
+
+def parse_period(raw: str | None) -> tuple[int | None, int | None]:
+    """Extract (quarter 1-4 or calendar-inferred quarter, four-digit year)."""
+    q, y, _ = parse_period_meta(raw)
+    return q, y
 
 
 def quarter_to_filing_period(q: int | None) -> FilingPeriod | None:
@@ -200,6 +251,34 @@ def infer_sla_tracker(sla_priority: SLAPriority | None) -> SLATracker | None:
     }.get(sla_priority)
 
 
+def escalate_sla_for_due_date(
+    issue_type: IssueType,
+    sla_priority: SLAPriority | None,
+    *,
+    explicit_due_date: date | None,
+    today: date | None,
+) -> SLAPriority | None:
+    """Raise Blocker SLA when the filing due date is within three days or past."""
+    if issue_type != IssueType.BLOCKER:
+        return sla_priority
+    if explicit_due_date is None or today is None:
+        return sla_priority
+    if (explicit_due_date - today).days > 3:
+        return sla_priority
+    return SLAPriority.P0_CRITICAL
+
+
+def infer_filing_frequency(
+    quarter: int | None,
+    explicit_quarter: bool,
+) -> FilingFrequency | None:
+    if quarter is None:
+        return None
+    if explicit_quarter:
+        return FilingFrequency.QUARTERLY
+    return FilingFrequency.MONTHLY
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -209,18 +288,26 @@ def apply_mapping(
     description: str,
     tax_period: str | None = None,
     impact_hint: str | None = None,
+    explicit_due_date: date | None = None,
+    today: date | None = None,
 ) -> MappingResult:
     """Apply deterministic rules to produce Jira-ready fields from extracted metadata."""
 
-    quarter, year = parse_period(tax_period)
+    quarter, year, explicit_quarter = parse_period_meta(tax_period)
     issue_type = classify_issue_type(description)
 
     filing_period = quarter_to_filing_period(quarter)
     filing_year = year_to_filing_year(year)
-    filing_frequency = FilingFrequency.QUARTERLY if quarter else None
+    filing_frequency = infer_filing_frequency(quarter, explicit_quarter)
 
     impact = infer_impact(description, impact_hint)
     sla_priority = infer_sla_priority(issue_type, impact)
+    sla_priority = escalate_sla_for_due_date(
+        issue_type,
+        sla_priority,
+        explicit_due_date=explicit_due_date,
+        today=today,
+    )
     sla_tracker = infer_sla_tracker(sla_priority)
 
     labels: list[str] = []

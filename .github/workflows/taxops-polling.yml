@@ -1,0 +1,53 @@
+name: TaxOps Polling (every 15 min)
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  polling:
+    runs-on: ubuntu-latest
+    env:
+      JIRA_BASE_URL:   ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL:      ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN:  ${{ secrets.JIRA_API_TOKEN }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      RANA_SLACK_UID:  ${{ secrets.RANA_SLACK_UID }}
+      LEAD_NAMES_JSON: ${{ secrets.LEAD_NAMES_JSON }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r taxops/requirements.txt
+      - name: A1 - WFO Accountability
+        working-directory: taxops
+        run: python a1_wfo_accountability.py
+        continue-on-error: true
+      - name: A2 - Quality Gate Checker
+        working-directory: taxops
+        run: python a2_quality_gate.py
+        continue-on-error: true
+      - name: A3 - Label Quadrant Validator
+        working-directory: taxops
+        run: python a3_label_quadrant.py
+        continue-on-error: true
+      - name: A4 - Sign-Off Mismatch Detector
+        working-directory: taxops
+        run: python a4_signoff_mismatch.py
+        continue-on-error: true
+      - name: A7 - New Scope Detector
+        working-directory: taxops
+        run: python a7_new_scope.py
+        continue-on-error: true
+      - name: A8 - Auto-Add Ownership Label
+        working-directory: taxops
+        run: python a8_auto_label.py
+        continue-on-error: true
+      - name: A9 - Bad Ticket Notifier
+        working-directory: taxops
+        run: python a9_bad_ticket.py
+        continue-on-error: true

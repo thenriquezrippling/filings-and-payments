@@ -1,0 +1,26 @@
+name: TaxOps Weekly Digest (Mon 12 PM ET)
+
+on:
+  schedule:
+    - cron: '0 17 * * 1'
+  workflow_dispatch:
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    env:
+      JIRA_BASE_URL:   ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL:      ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN:  ${{ secrets.JIRA_API_TOKEN }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r taxops/requirements.txt
+      - name: A6 - Weekly Executive QA Digest
+        working-directory: taxops
+        run: python a6_weekly_digest.py

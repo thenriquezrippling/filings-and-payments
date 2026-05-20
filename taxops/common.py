@@ -1,6 +1,6 @@
 """
-common.py — Shared helpers for TaxOps GitHub Actions automations.
-No LLM. Pure Python + Jira REST API v3 + Slack Web API.
+common.py -- Shared helpers for TaxOps GitHub Actions automations.
+No LLM. Pure Python + Jira REST API v3 + Slack Workflow Builder webhooks.
 """
 import os
 import re
@@ -11,20 +11,25 @@ from base64 import b64encode
 
 import pytz
 
-# ── Environment ───────────────────────────────────────────────────────────────
+# -- Environment --------------------------------------------------------------
 JIRA_BASE_URL   = os.environ.get("JIRA_BASE_URL", "https://rippling.atlassian.net")
 JIRA_EMAIL      = os.environ["JIRA_EMAIL"]
 JIRA_API_TOKEN  = ********["JIRA_API_TOKEN"]
-SLACK_BOT_TOKEN = ********["SLACK_BOT_TOKEN"]
+
+# Slack Workflow Builder webhook URLs (no bot token needed)
+# SLACK_WEBHOOK_OPS  -> #taxops_case_help  (all operational alerts)
+# SLACK_WEBHOOK_EXEC -> #taxops-leadership (weekly executive digest)
+SLACK_WEBHOOK_OPS  = os.environ["SLACK_WEBHOOK_OPS"]
+SLACK_WEBHOOK_EXEC = os.environ["SLACK_WEBHOOK_EXEC"]
 
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
 
-# Slack channels
-CH_OPS   = "C029NNJG8GL"   # Ops Accountability / WFO / Bad Ticket
-CH_LEAD  = "C05DL99K1BQ"   # Region Lead Review / QA Alerts
-CH_EXEC  = "C03KQHBMMP1"   # Executive Weekly Digest
-CH_ERROR = "C05A5MQCRK4"   # Automation Errors
+# Slack channel constants (used for routing to the right webhook)
+CH_OPS   = "ops"    # -> SLACK_WEBHOOK_OPS
+CH_LEAD  = "ops"    # -> SLACK_WEBHOOK_OPS (lead alerts also go to case-help)
+CH_EXEC  = "exec"   # -> SLACK_WEBHOOK_EXEC
+CH_ERROR = "ops"    # -> SLACK_WEBHOOK_OPS
 
 # Slack user-group mentions
 MEN_LEADERS = "<!subteam^S06URQSJGEN>"   # @us-taxops-leaders
@@ -41,7 +46,7 @@ REGION_LEADS = {
     "pr-region":        ("U04HQQ0TEDN", "U02UTR26FML"),
 }
 
-# Optional: Rana's Slack UID for A5 tagging (set as GitHub Secret RANA_SLACK_UID)
+# Optional: Rana's Slack UID for A5 SLA tagging
 RANA_UID = os.environ.get("RANA_SLACK_UID", "")
 
 ET = pytz.timezone("America/New_York")
@@ -49,7 +54,37 @@ ET = pytz.timezone("America/New_York")
 BASE_JQL = f'project = {JIRA_PROJECT} AND issuetype = "{ISSUE_TYPE}"'
 
 
-# ── Jira helpers ──────────────────────────────────────────────────────────────
+# -- Slack helpers ------------------------------------------------------------
+
+def _webhook_url(channel):
+    return SLACK_WEBHOOK_EXEC if channel == CH_EXEC else SLACK_WEBHOOK_OPS
+
+
+def slack_post(text, channel):
+    """Post a message via Slack Workflow Builder webhook. Returns empty string (no ts)."""
+    url = _webhook_url(channel)
+    r = requests.post(url, json={"message": text},
+                      headers={"Content-Type": "application/json"}, timeout=30)
+    r.raise_for_status()
+    return ""   # webhooks don't return a message ts
+
+
+def slack_reply(text, thread_ts, channel):
+    """Post a follow-up message. Webhooks don't support threading so this
+    posts as a second standalone message to the same channel."""
+    return slack_post(text, channel)
+
+
+def post_error(msg):
+    """Post to the ops channel (errors) and stderr."""
+    try:
+        slack_post(f":rotating_light: *TaxOps Automation Error*\n{msg}", CH_ERROR)
+    except Exception:
+        pass
+    print(f"ERROR: {msg}", file=sys.stderr)
+
+
+# -- Jira helpers -------------------------------------------------------------
 
 def _jira_headers():
     creds = b64encode(f"{JIRA_EMAIL}:{JIRA_API_TOKEN}".encode()).decode()
@@ -101,7 +136,7 @@ def has_auto_flag(issue_key, flag):
 
 
 def add_comment(issue_key, text):
-    """Add a plain-text comment (wrapped in ADF) to a Jira issue."""
+    """Add a plain-text comment (ADF) to a Jira issue."""
     url  = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/comment"
     body = {
         "body": {
@@ -139,7 +174,6 @@ def remove_label(issue, issue_key, label):
 
 
 def remove_labels_matching(issue, issue_key, prefix):
-    """Remove all labels that start with the given prefix."""
     current = get_labels(issue)
     cleaned = [l for l in current if not l.startswith(prefix)]
     if len(cleaned) != len(current):
@@ -147,7 +181,7 @@ def remove_labels_matching(issue, issue_key, prefix):
 
 
 def _adf_to_text(node):
-    """Recursively extract plain text from an Atlassian Document Format node."""
+    """Recursively extract plain text from an ADF node."""
     if isinstance(node, str):
         return node
     if isinstance(node, dict):
@@ -160,68 +194,24 @@ def _adf_to_text(node):
 
 
 def desc_text(issue):
-    """Return issue description as plain text."""
     raw = issue.get("fields", {}).get("description") or {}
     return _adf_to_text(raw)
 
 
 def region_lead_uid(labels, is_peo=False):
-    """Return the Slack UID of the expected lead for this issue's region label(s)."""
     for lbl, (std, peo) in REGION_LEADS.items():
         if lbl in labels:
             return peo if is_peo else std
     return ""
 
 
-# ── Slack helpers ─────────────────────────────────────────────────────────────
-
-def _slack_headers():
-    return {"Authorization": f"Bearer {SLACK_BOT_TOKEN}",
-            "Content-Type":  "application/json"}
-
-
-def slack_post(text, channel):
-    """Post a Slack message; return the message timestamp (ts)."""
-    r = requests.post("https://slack.com/api/chat.postMessage",
-                      headers=_slack_headers(),
-                      json={"channel": channel, "text": text}, timeout=30)
-    r.raise_for_status()
-    data = r.json()
-    if not data.get("ok"):
-        raise RuntimeError(f"Slack postMessage error: {data.get('error')}")
-    return data["ts"]
-
-
-def slack_reply(text, thread_ts, channel):
-    """Post a threaded reply; return the reply ts."""
-    r = requests.post("https://slack.com/api/chat.postMessage",
-                      headers=_slack_headers(),
-                      json={"channel": channel, "text": text,
-                            "thread_ts": thread_ts}, timeout=30)
-    r.raise_for_status()
-    data = r.json()
-    if not data.get("ok"):
-        raise RuntimeError(f"Slack reply error: {data.get('error')}")
-    return data["ts"]
-
-
-def post_error(msg):
-    """Post to the error channel and stderr."""
-    try:
-        slack_post(f":rotating_light: *TaxOps Automation Error*\n{msg}", CH_ERROR)
-    except Exception:
-        pass
-    print(f"ERROR: {msg}", file=sys.stderr)
-
-
-# ── Date / time helpers ───────────────────────────────────────────────────────
+# -- Date / time helpers ------------------------------------------------------
 
 def _safe_parse_dt(dt_str):
-    """Parse a Jira ISO datetime string to a timezone-aware UTC datetime."""
     if not dt_str:
         return None
-    s = re.sub(r"\.\d+", "", dt_str)              # strip sub-seconds
-    s = re.sub(r"([+-]\d{2}):(\d{2})$", r"\1\2", s)  # +05:30 -> +0530
+    s = re.sub(r"\.\d+", "", dt_str)
+    s = re.sub(r"([+-]\d{2}):(\d{2})$", r"\1\2", s)
     try:
         return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S%z")
     except ValueError:
@@ -241,7 +231,7 @@ def biz_hours_since(dt_str):
     total = 0.0
     cur   = start_et.date()
     while cur <= end_et.date():
-        if cur.weekday() < 5:  # Mon-Fri
+        if cur.weekday() < 5:
             day_s = ET.localize(datetime.combine(cur, dtime(9, 0)))
             day_e = ET.localize(datetime.combine(cur, dtime(18, 0)))
             ws    = max(start_et, day_s)
@@ -253,12 +243,10 @@ def biz_hours_since(dt_str):
 
 
 def biz_days_since(dt_str):
-    """Business days (9-hour days) elapsed since dt_str."""
     return biz_hours_since(dt_str) / 9.0
 
 
 def calendar_hours_since(dt_str):
-    """Wall-clock hours elapsed since dt_str."""
     start = _safe_parse_dt(dt_str)
     if not start:
         return 0.0
@@ -268,8 +256,6 @@ def calendar_hours_since(dt_str):
 def issue_url(key):
     return f"{JIRA_BASE_URL}/browse/{key}"
 
-
-# ── JQL convenience ───────────────────────────────────────────────────────────
 
 COMMON_FIELDS = [
     "summary", "status", "labels", "assignee", "reporter",

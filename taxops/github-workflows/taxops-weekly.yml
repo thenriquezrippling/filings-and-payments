@@ -9,10 +9,11 @@ jobs:
   weekly:
     runs-on: ubuntu-latest
     env:
-      JIRA_BASE_URL:   ${{ secrets.JIRA_BASE_URL }}
-      JIRA_EMAIL:      ${{ secrets.JIRA_EMAIL }}
-      JIRA_API_TOKEN:  ${{ secrets.JIRA_API_TOKEN }}
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      JIRA_BASE_URL:      ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL:         ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN:     ${{ secrets.JIRA_API_TOKEN }}
+      SLACK_WEBHOOK_OPS:  ${{ secrets.SLACK_WEBHOOK_OPS }}
+      SLACK_WEBHOOK_EXEC: ${{ secrets.SLACK_WEBHOOK_EXEC }}
 
     steps:
       - uses: actions/checkout@v4

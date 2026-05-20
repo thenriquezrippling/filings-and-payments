@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 common.py -- Shared helpers for TaxOps GitHub Actions automations.
 No LLM. Pure Python + Jira REST API v3 + Slack Workflow Builder webhooks.
@@ -11,31 +12,35 @@ from base64 import b64encode
 
 import pytz
 
-# -- Environment --------------------------------------------------------------
-JIRA_BASE_URL   = os.environ.get("JIRA_BASE_URL", "https://rippling.atlassian.net")
-JIRA_EMAIL      = os.environ["JIRA_EMAIL"]
-JIRA_API_TOKEN  = ********["JIRA_API_TOKEN"]
 
-# Slack Workflow Builder webhook URLs (no bot token needed)
-# SLACK_WEBHOOK_OPS  -> #taxops_case_help  (all operational alerts)
-# SLACK_WEBHOOK_EXEC -> #taxops-leadership (weekly executive digest)
-SLACK_WEBHOOK_OPS  = os.environ["SLACK_WEBHOOK_OPS"]
-SLACK_WEBHOOK_EXEC = os.environ["SLACK_WEBHOOK_EXEC"]
+def _require(name):
+    """Get a required environment variable or exit with a clear error."""
+    val = os.getenv(name, "")
+    if not val:
+        print(f"FATAL: required env var {name!r} is not set", file=sys.stderr)
+        sys.exit(1)
+    return val
+
+
+# -- Config -------------------------------------------------------------------
+JIRA_BASE_URL      = os.getenv("JIRA_BASE_URL", "https://rippling.atlassian.net")
+JIRA_EMAIL         = _require("JIRA_EMAIL")
+JIRA_API_TOKEN     = _require("JIRA_API_TOKEN")
+SLACK_WEBHOOK_OPS  = _require("SLACK_WEBHOOK_OPS")
+SLACK_WEBHOOK_EXEC = _require("SLACK_WEBHOOK_EXEC")
+RANA_UID           = os.getenv("RANA_SLACK_UID", "")
 
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
 
-# Slack channel constants (used for routing to the right webhook)
-CH_OPS   = "ops"    # -> SLACK_WEBHOOK_OPS
-CH_LEAD  = "ops"    # -> SLACK_WEBHOOK_OPS (lead alerts also go to case-help)
-CH_EXEC  = "exec"   # -> SLACK_WEBHOOK_EXEC
-CH_ERROR = "ops"    # -> SLACK_WEBHOOK_OPS
+CH_OPS   = "ops"
+CH_LEAD  = "ops"
+CH_EXEC  = "exec"
+CH_ERROR = "ops"
 
-# Slack user-group mentions
-MEN_LEADERS = "<!subteam^S06URQSJGEN>"   # @us-taxops-leaders
-MEN_LEADS2  = "<!subteam^S0ANS8X2B7Y>"   # secondary leader group (72h escalation)
+MEN_LEADERS = "<!subteam^S06URQSJGEN>"
+MEN_LEADS2  = "<!subteam^S0ANS8X2B7Y>"
 
-# Region -> (standard_lead_uid, peo_lead_uid)
 REGION_LEADS = {
     "west-region":      ("U03BFEP9614", "U0789C02H6F"),
     "south-region":     ("U04HQQ0TEDN", "U064GL0HC1X"),
@@ -46,62 +51,59 @@ REGION_LEADS = {
     "pr-region":        ("U04HQQ0TEDN", "U02UTR26FML"),
 }
 
-# Optional: Rana's Slack UID for A5 SLA tagging
-RANA_UID = os.environ.get("RANA_SLACK_UID", "")
-
 ET = pytz.timezone("America/New_York")
 
-BASE_JQL = f'project = {JIRA_PROJECT} AND issuetype = "{ISSUE_TYPE}"'
+BASE_JQL = 'project = PF AND issuetype = "Ops - Customer Task"'
+
+COMMON_FIELDS = [
+    "summary", "status", "labels", "assignee", "reporter",
+    "priority", "created", "updated", "statuscategorychangedate",
+]
 
 
-# -- Slack helpers ------------------------------------------------------------
+# -- Slack --------------------------------------------------------------------
 
 def _webhook_url(channel):
     return SLACK_WEBHOOK_EXEC if channel == CH_EXEC else SLACK_WEBHOOK_OPS
 
 
 def slack_post(text, channel):
-    """Post a message via Slack Workflow Builder webhook. Returns empty string (no ts)."""
     url = _webhook_url(channel)
     r = requests.post(url, json={"message": text},
                       headers={"Content-Type": "application/json"}, timeout=30)
     r.raise_for_status()
-    return ""   # webhooks don't return a message ts
+    return ""
 
 
 def slack_reply(text, thread_ts, channel):
-    """Post a follow-up message. Webhooks don't support threading so this
-    posts as a second standalone message to the same channel."""
     return slack_post(text, channel)
 
 
 def post_error(msg):
-    """Post to the ops channel (errors) and stderr."""
     try:
-        slack_post(f":rotating_light: *TaxOps Automation Error*\n{msg}", CH_ERROR)
+        slack_post(":rotating_light: *TaxOps Error*\n" + msg, CH_ERROR)
     except Exception:
         pass
-    print(f"ERROR: {msg}", file=sys.stderr)
+    print("ERROR: " + msg, file=sys.stderr)
 
 
-# -- Jira helpers -------------------------------------------------------------
+# -- Jira ---------------------------------------------------------------------
 
-def _jira_headers():
-    creds = b64encode(f"{JIRA_EMAIL}:{JIRA_API_TOKEN}".encode()).decode()
+def _jira_auth():
+    creds = b64encode((JIRA_EMAIL + ":" + JIRA_API_TOKEN).encode()).decode()
     return {
-        "Authorization": f"Basic {creds}",
+        "Authorization": "Basic " + creds,
         "Content-Type":  "application/json",
         "Accept":        "application/json",
     }
 
 
 def jira_search(jql, fields=None, max_results=100):
-    """Search Jira issues; paginates up to 500 results."""
-    url    = f"{JIRA_BASE_URL}/rest/api/3/search"
+    url    = JIRA_BASE_URL + "/rest/api/3/search"
     params = {"jql": jql, "maxResults": max_results}
     if fields:
         params["fields"] = ",".join(fields)
-    r = requests.get(url, headers=_jira_headers(), params=params, timeout=30)
+    r = requests.get(url, headers=_jira_auth(), params=params, timeout=30)
     r.raise_for_status()
     data   = r.json()
     issues = data.get("issues", [])
@@ -109,7 +111,7 @@ def jira_search(jql, fields=None, max_results=100):
     start  = len(issues)
     while start < total and len(issues) < 500:
         params["startAt"] = start
-        r = requests.get(url, headers=_jira_headers(), params=params, timeout=30)
+        r = requests.get(url, headers=_jira_auth(), params=params, timeout=30)
         r.raise_for_status()
         batch = r.json().get("issues", [])
         if not batch:
@@ -120,15 +122,14 @@ def jira_search(jql, fields=None, max_results=100):
 
 
 def get_comments(issue_key):
-    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/comment"
-    r   = requests.get(url, headers=_jira_headers(),
+    url = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key + "/comment"
+    r   = requests.get(url, headers=_jira_auth(),
                        params={"maxResults": 200}, timeout=30)
     r.raise_for_status()
     return r.json().get("comments", [])
 
 
 def has_auto_flag(issue_key, flag):
-    """Return True if any comment on this issue contains the AUTO_FLAG string."""
     for c in get_comments(issue_key):
         if flag in _adf_to_text(c.get("body", {})):
             return True
@@ -136,8 +137,7 @@ def has_auto_flag(issue_key, flag):
 
 
 def add_comment(issue_key, text):
-    """Add a plain-text comment (ADF) to a Jira issue."""
-    url  = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/comment"
+    url  = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key + "/comment"
     body = {
         "body": {
             "type": "doc", "version": 1,
@@ -145,7 +145,7 @@ def add_comment(issue_key, text):
                           "content": [{"type": "text", "text": text}]}]
         }
     }
-    r = requests.post(url, headers=_jira_headers(), json=body, timeout=30)
+    r = requests.post(url, headers=_jira_auth(), json=body, timeout=30)
     r.raise_for_status()
     return r.json()
 
@@ -155,8 +155,8 @@ def get_labels(issue):
 
 
 def update_labels(issue_key, labels):
-    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}"
-    r   = requests.put(url, headers=_jira_headers(),
+    url = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key
+    r   = requests.put(url, headers=_jira_auth(),
                        json={"fields": {"labels": labels}}, timeout=30)
     r.raise_for_status()
 
@@ -181,7 +181,6 @@ def remove_labels_matching(issue, issue_key, prefix):
 
 
 def _adf_to_text(node):
-    """Recursively extract plain text from an ADF node."""
     if isinstance(node, str):
         return node
     if isinstance(node, dict):
@@ -205,7 +204,7 @@ def region_lead_uid(labels, is_peo=False):
     return ""
 
 
-# -- Date / time helpers ------------------------------------------------------
+# -- Date helpers -------------------------------------------------------------
 
 def _safe_parse_dt(dt_str):
     if not dt_str:
@@ -219,7 +218,6 @@ def _safe_parse_dt(dt_str):
 
 
 def biz_hours_since(dt_str):
-    """Business hours elapsed since dt_str (Mon-Fri 9am-6pm ET)."""
     start = _safe_parse_dt(dt_str)
     if not start:
         return 0.0
@@ -254,10 +252,4 @@ def calendar_hours_since(dt_str):
 
 
 def issue_url(key):
-    return f"{JIRA_BASE_URL}/browse/{key}"
-
-
-COMMON_FIELDS = [
-    "summary", "status", "labels", "assignee", "reporter",
-    "priority", "created", "updated", "statuscategorychangedate",
-]
+    return JIRA_BASE_URL + "/browse/" + key

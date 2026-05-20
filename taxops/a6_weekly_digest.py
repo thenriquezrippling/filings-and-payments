@@ -52,7 +52,7 @@ def run():
 
     # ─ All active tickets ────────────────────────────────────────────
     all_issues = jira_search(
-        f'{BASE_JQL} AND labels = "us-taxops-tickets"',
+        f'{BASE_JQL} AND labels = "us-taxops-ticket"',
         fields=COMMON_FIELDS,
         max_results=500,
     )

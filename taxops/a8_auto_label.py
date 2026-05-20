@@ -2,7 +2,7 @@
 A8 - Auto-Add Ownership Label
 Polling every 15 min.
 
-Silently adds `us-taxops-tickets` to any PF Ops-Customer-Task ticket
+Silently adds `us-taxops-ticket` to any PF Ops-Customer-Task ticket
 that is missing it. No Jira comment. No Slack message. Fully silent.
 This label is permanent and is NEVER removed.
 """
@@ -10,7 +10,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
 
-OWNERSHIP = "us-taxops-tickets"
+OWNERSHIP = "us-taxops-ticket"
 
 
 def run():

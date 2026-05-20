@@ -28,7 +28,7 @@ DEFAULT_SLA = (16, 20)   # Medium fallback
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND status != Done AND labels = "us-taxops-tickets"',
+        f'{BASE_JQL} AND status != Done AND labels = "us-taxops-ticket"',
         fields=COMMON_FIELDS,
         max_results=200,
     )

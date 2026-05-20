@@ -5,7 +5,7 @@ Polling every 15 min. Validates 4 label quadrants on recently updated tickets.
 Quadrant rules:
   Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task
   Geographic (at least 1): west/south/northeast/midwest/IRS/federal/pr -region
-  Ownership (required):    us-taxops-tickets
+  Ownership (required):    us-taxops-ticket
   Assigned Team (exactly 1): us-amendments | us-tax-filings | e2e-peo | rip-direct | us-nhr
 
 Dedup: AUTO_FLAG:LABEL_QUADRANT prevents re-alerting same ticket.
@@ -27,7 +27,7 @@ TEAM_LABELS = {
     "us-amendments", "us-tax-filings",
     "e2e-peo", "rip-direct", "us-nhr",
 }
-OWNERSHIP_LABEL = "us-taxops-tickets"
+OWNERSHIP_LABEL = "us-taxops-ticket"
 
 
 def _validate_quadrants(labels):
@@ -73,7 +73,7 @@ def run():
         url     = issue_url(key)
         labels  = get_labels(issue)
 
-        # Silently ensure us-taxops-tickets is present (A8 does this too)
+        # Silently ensure us-taxops-ticket is present (A8 does this too)
         if OWNERSHIP_LABEL not in labels:
             try:
                 add_label(issue, key, OWNERSHIP_LABEL)

@@ -99,7 +99,7 @@ def _jira_auth():
 
 
 def jira_search(jql, fields=None, max_results=100):
-    url    = JIRA_BASE_URL + "/rest/api/3/search"
+    url    = JIRA_BASE_URL + "/rest/api/3/search/jql"
     params = {"jql": jql, "maxResults": max_results}
     if fields:
         params["fields"] = ",".join(fields)

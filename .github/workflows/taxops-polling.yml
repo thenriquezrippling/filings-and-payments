@@ -9,12 +9,13 @@ jobs:
   polling:
     runs-on: ubuntu-latest
     env:
-      JIRA_BASE_URL:   ${{ secrets.JIRA_BASE_URL }}
-      JIRA_EMAIL:      ${{ secrets.JIRA_EMAIL }}
-      JIRA_API_TOKEN:  ${{ secrets.JIRA_API_TOKEN }}
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      RANA_SLACK_UID:  ${{ secrets.RANA_SLACK_UID }}
-      LEAD_NAMES_JSON: ${{ secrets.LEAD_NAMES_JSON }}
+      JIRA_BASE_URL:      ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL:         ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN:     ${{ secrets.JIRA_API_TOKEN }}
+      SLACK_WEBHOOK_OPS:  ${{ secrets.SLACK_WEBHOOK_OPS }}
+      SLACK_WEBHOOK_EXEC: ${{ secrets.SLACK_WEBHOOK_EXEC }}
+      RANA_SLACK_UID:     ${{ secrets.RANA_SLACK_UID }}
+      LEAD_NAMES_JSON:    ${{ secrets.LEAD_NAMES_JSON }}
 
     steps:
       - uses: actions/checkout@v4

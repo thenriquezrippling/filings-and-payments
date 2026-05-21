@@ -54,6 +54,7 @@ REGION_LEADS = {
 ET = pytz.timezone("America/New_York")
 
 BASE_JQL = 'project = PF AND issuetype = "Ops - Customer Task"'
+GOVERNANCE_START = "2026-05-18"
 
 COMMON_FIELDS = [
     "summary", "status", "labels", "assignee", "reporter",

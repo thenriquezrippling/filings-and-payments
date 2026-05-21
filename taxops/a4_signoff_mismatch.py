@@ -71,7 +71,7 @@ def _check_signoff(issue):
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND status != Done AND updated >= "-30m"',
+        f'{BASE_JQL} AND status != Done AND created >= "{GOVERNANCE_START}" AND updated >= "-30m"',
         fields=COMMON_FIELDS + ["description"],
     )
     print(f"[A4] {len(issues)} recently updated tickets to check")

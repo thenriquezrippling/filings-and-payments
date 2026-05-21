@@ -48,7 +48,6 @@ def count_by_label(issues, label_set):
 
 def run():
     week_label = datetime.now(ET).strftime("%B %d, %Y")
-    now_tag    = MEN_LEADS2  # tag secondary leader group in digest header
 
     # ─ All active tickets ────────────────────────────────────────────
     all_issues = jira_search(
@@ -120,14 +119,13 @@ def run():
 
     # ─ Post Message 1: short headline ────────────────────────────
     headline = (
-        f"{now_tag}\n"
-        f":bar_chart: *TaxOps Weekly QA Digest — Week of {week_label}*\n"
+        f"📊 *TaxOps Weekly QA Digest — Week of {week_label}*\n"
         f"{total_open} open tickets | {total_done} closed this week | "
         f"{n_qa} QA flags | {n_sla} SLA flags | {n_wfo} WFO aging\n"
         f"_Full breakdown in thread ↓_"
     )
-    ts = slack_post(headline, CH_EXEC)
-    print(f"[A6] Posted headline, ts={ts}")
+    import requests as _req
+    _req.post(SLACK_WEBHOOK_EXEC, json={"headline": headline, "detail": detail}, headers={"Content-Type": "application/json"}, timeout=30).raise_for_status()
 
     # ─ Post Message 2: full detail in thread ─────────────────────
     def fmt_section(title, lines, empty_msg="None this week ✅"):
@@ -146,19 +144,20 @@ def run():
     words_str = ", ".join(f"{w} ({c})" for w, c in words) or "(no data)"
 
     detail = "\n\n".join([
-        fmt_section(":mag: Quality Gate Issues",   qa_lines),
-        fmt_section(":label: Label/Routing Issues", lbl_lines),
-        fmt_section(":hourglass: Waiting-for-Ops Aging", wfo_lines),
-        fmt_section(":fire: SLA Watch",             sla_lines),
-        fmt_section(":telescope: New Scope Detected", scope_lines),
-        f"*:chart_with_upwards_trend: Status Distribution*\n  {status_str}",
-        f"*:earth_americas: Region Breakdown*\n  {region_str}",
-        f"*:busts_in_silhouette: Team Breakdown*\n  {team_str}",
-        f"*:speech_balloon: Top Keywords in Summaries*\n  {words_str}",
+        fmt_section("🔍 Quality Gate Issues",   qa_lines),
+        fmt_section("🏷️ Label/Routing Issues", lbl_lines),
+        fmt_section("⏳ Waiting-for-Ops Aging", wfo_lines),
+        fmt_section("🔥 SLA Watch",             sla_lines),
+        fmt_section("🔭 New Scope Detected", scope_lines),
+        f"*📈 Status Distribution*\n  {status_str}",
+        f"*🌎 Region Breakdown*\n  {region_str}",
+        f"*👥 Team Breakdown*\n  {team_str}",
+        f"*💬 Top Keywords in Summaries*\n  {words_str}",
     ])
 
-    slack_reply(detail, ts, CH_EXEC)
-    print("[A6] Posted detail thread")
+    import requests as _req
+    _req.post(SLACK_WEBHOOK_EXEC, json={"headline": headline, "detail": detail}, headers={"Content-Type": "application/json"}, timeout=30).raise_for_status()
+    print("[A6] Posted digest with thread")
 
 
 if __name__ == "__main__":

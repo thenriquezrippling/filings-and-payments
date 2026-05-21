@@ -38,8 +38,8 @@ CH_LEAD  = "ops"
 CH_EXEC  = "exec"
 CH_ERROR = "ops"
 
-MEN_LEADERS = "<!subteam^S06URQSJGEN>"
-MEN_LEADS2  = "<!subteam^S0ANS8X2B7Y>"
+MEN_LEADERS = ""
+MEN_LEADS2  = ""
 
 REGION_LEADS = {
     "west-region":      ("U03BFEP9614", "U0789C02H6F"),

@@ -124,9 +124,6 @@ def run():
         f"{n_qa} QA flags | {n_sla} SLA flags | {n_wfo} WFO aging\n"
         f"_Full breakdown in thread ↓_"
     )
-    import requests as _req
-    _req.post(SLACK_WEBHOOK_EXEC, json={"headline": headline, "detail": detail}, headers={"Content-Type": "application/json"}, timeout=30).raise_for_status()
-
     # ─ Post Message 2: full detail in thread ─────────────────────
     def fmt_section(title, lines, empty_msg="None this week ✅"):
         body = "\n".join(lines) if lines else f"  {empty_msg}"

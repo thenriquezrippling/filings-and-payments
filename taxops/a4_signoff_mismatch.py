@@ -7,6 +7,9 @@ Flags tickets where:
   - Sign-off line is entirely absent
   - Sign-off name is blank / placeholder
 
+Exempt reporters (no sign-off required):
+  Vijay Kumar, Rashmita Topakulu
+
 Expected lead per region is looked up from REGION_LEADS in common.py.
 Full name-match validation requires knowing display names; this script
 flags absence and can be extended with a LEAD_NAMES env var map.
@@ -26,6 +29,9 @@ REGION_LABELS_ALL = {
 # For IRS/federal/pr-region sign-off presence is checked only (no name match)
 SIGNOFF_PRESENCE_ONLY = {"IRS-region", "federal-region", "pr-region"}
 
+# Reporters whose tickets do not require lead sign-off
+EXEMPT_REPORTER_NAMES = {"vijay kumar", "rashmita topakulu"}
+
 
 def _check_signoff(issue):
     """
@@ -37,21 +43,16 @@ def _check_signoff(issue):
     match  = SIGNOFF_RE.search(text)
 
     if not match:
-        # No sign-off line at all
         return False, '"Reviewed and signed off by:" line is missing from description'
 
     name = match.group(1).strip()
     if not name or name.lower() in ("", "name", "tbd", "n/a", "-"):
         return False, f'Sign-off line present but name is empty or placeholder: "{name}"'
 
-    # For regions that require name match (non-IRS/federal/pr),
-    # we verify the sign-off exists for the correct region.
-    # Full name validation would require a Slack display-name lookup;
-    # set LEAD_NAMES_JSON env var as {"U03BFEP9614": "Jane Smith", ...} to enable.
     lead_names_raw = os.environ.get("LEAD_NAMES_JSON", "{}")
     try:
         import json
-        lead_names = json.loads(lead_names_raw)  # {uid: display_name}
+        lead_names = json.loads(lead_names_raw)
     except Exception:
         lead_names = {}
 
@@ -82,6 +83,14 @@ def run():
         summary = fields.get("summary", "(no summary)")
         url     = issue_url(key)
         labels  = get_labels(issue)
+
+        # Vijay Kumar and Rashmita Topakulu tickets do not require lead sign-off
+        reporter_name = ((fields.get("reporter") or {}).get("displayName") or "").lower()
+        if reporter_name in EXEMPT_REPORTER_NAMES:
+            if "signoff-mismatch" in labels:
+                remove_label(issue, key, "signoff-mismatch")
+                print(f"[A4] {key} exempt reporter ({reporter_name}) — removed signoff-mismatch")
+            continue
 
         try:
             ok, reason = _check_signoff(issue)

@@ -1,1 +1,465 @@
-IiIiCkE2IOKAlCBXZWVrbHkgRXhlY3V0aXZlIFFBIERpZ2VzdApSdW5zIGV2ZXJ5IE1vbmRheSBhdCAxMjowMCBQTSBFVCAoMTY6MDAgVVRDKS4KClBvc3RzIHRvIENIX0VYRUMgKCN0YXhvcHMtbGVhZGVyc2hpcCkgdmlhIFphcGllciB3ZWJob29rOgogIGhlYWRsaW5lOiBzaG9ydCBuYXJyYXRpdmUgZXhlY3V0aXZlIHN1bW1hcnkgKHRvcC1sZXZlbCBwb3N0KQogIGRldGFpbDogICBmdWxsIGJyZWFrZG93biBwZXIgV0JSIHNwZWMgKHRocmVhZCByZXBseSkKCkV2ZXJ5IGNvdW50IGluY2x1ZGVzIGh5cGVybGlua2VkIHRpY2tldCBleGFtcGxlczoKICDiiaQ1IHRpY2tldHMgIOKGkiBsaXN0IGluZGl2aWR1YWwgPFVSTHxLRVk+IGxpbmtzCiAgPjUgdGlja2V0cyAg4oaSIGxpbmsgdG8gSmlyYSBmaWx0ZXIgVVJMCgpXb1cgY29tcGFyaXNvbiBzdG9yZWQgaW4gdGF4b3BzL3dicl9oaXN0b3J5Lmpzb24uCkdvdmVybmFuY2UgbWV0cmljcyBvbmx5IGNvdmVyIHRpY2tldHMgY3JlYXRlZCA+PSBHT1ZFUk5BTkNFX1NUQVJULgpTTEEgYW5kIHZvbHVtZSBtZXRyaWNzIGNvdmVyIEFMTCBvcGVuIHRpY2tldHMuCiIiIgppbXBvcnQgc3lzLCBvcywganNvbiwgcmUsIHVybGxpYi5wYXJzZQpzeXMucGF0aC5pbnNlcnQoMCwgb3MucGF0aC5kaXJuYW1lKG9zLnBhdGguYWJzcGF0aChfX2ZpbGVfXykpKQpmcm9tIGNvbW1vbiBpbXBvcnQgKgpmcm9tIGRhdGV0aW1lIGltcG9ydCBkYXRldGltZQpmcm9tIGNvbGxlY3Rpb25zIGltcG9ydCBDb3VudGVyCmltcG9ydCByZXF1ZXN0cyBhcyBfcmVxCgpISVNUT1JZX0ZJTEUgPSBvcy5wYXRoLmpvaW4ob3MucGF0aC5kaXJuYW1lKF9fZmlsZV9fKSwgIndicl9oaXN0b3J5Lmpzb24iKQoKVEFYX1RZUEVTID0gWyJTVUkiLCAiRk1MIiwgIkZVVEEiLCAiU1VUQSIsICI5NDEiLCAiOTQwIiwgIlctMiIsICIxMDk5IiwKICAgICAgICAgICAgICJTREkiLCAiU0lUIiwgIkZJVCIsICJGSUNBIiwgImxvY2FsIl0KVEFYX1JFID0gcmUuY29tcGlsZShyJ1xiKCcgKyAnfCcuam9pbihyZS5lc2NhcGUodCkgZm9yIHQgaW4gVEFYX1RZUEVTKSArIHInKVxiJywgcmUuSUdOT1JFQ0FTRSkKClNUT1BXT1JEUyA9IHsKICAgICJ0aGUiLCJhIiwiYW4iLCJhbmQiLCJvciIsImZvciIsImluIiwib24iLCJhdCIsInRvIiwib2YiLCJpcyIsImFyZSIsCiAgICAid2FzIiwid2VyZSIsIndpdGgiLCJ0aGlzIiwidGhhdCIsImZyb20iLCJieSIsIm5vdCIsImJlIiwiaXQiLCJhcyIsCiAgICAid2UiLCJpIiwicyIsInJlIiwiaGFzIiwiaGF2ZSIsImhhZCIsIndpbGwiLCJjYW4iLCJkbyIsImRpZCIsImRvZXMiLAogICAgIml0cyIsImJ1dCIsInNvIiwiaWYiLCJpbnRvIiwidGhhbiIsIm5vIiwiaGUiLCJzaGUiLCJ0aGV5IiwidGhlbSIsCiAgICAib3VyIiwieW91IiwieW91ciIsImFsbCIsIm5ldyIsInBlciIsImdldCIsInZpYSIsIm5lZWQiLCJhbHNvIiwKICAgICJpc3N1ZSIsInRpY2tldCIsInBsZWFzZSIsInVwZGF0ZSIsInBjaWgiLCJpbmMiLCJsbGMiLCJjb3JwIiwKICAgICJ1bmFibGUiLCJ1cGxvYWQiLCJyZXN1bHQiLCJmaWxlIiwiaGVscCIsImtub3ciLCJoZXJlIiwid2hhdCIsCiAgICAid2hlbiIsIndoZXJlIiwid2hpY2giLCJ0aGVuIiwianVzdCIsImJlZW4iLCJoYXZlIiwibW9yZSIsImFsc28iLAogICAgInNvbWUiLCJzdWNoIiwib25seSIsIm90aGVyIiwidGhhbiIsInZlcnkiLCJ3ZWxsIiwiYmFjayIsCn0KCk5PSVNFID0geyJwc2QiLCAicGpyIiwgInBjaWgiLCAiZmZpZCIsICJub3RpY2VxdWV1ZSIsICJ0YXNrIn0KCk9QRU5fU1RBVFVTRVNfRVhDTFVERSA9ICgiRG9uZSIsICJDbG9zZWQiLCAiUmVzb2x2ZWQiKQoKIyBKUUwgZnJhZ21lbnRzIHVzZWQgZm9yIGJvdGggQVBJIGZldGNoZXMgYW5kIGNsaWNrYWJsZSBKaXJhIGZpbHRlciBVUkxzCkJBU0VfT1BFTl9GSUxURVJfSlFMID0gKAogICAgJ3Byb2plY3QgPSBQRiBBTkQgaXNzdWV0eXBlID0gIk9wcyAtIEN1c3RvbWVyIFRhc2siICcKICAgICdBTkQgbGFiZWxzID0gInVzLXRheG9wcy10aWNrZXQiICcKICAgICdBTkQgc3RhdHVzIG5vdCBpbiAoRG9uZSwgQ2xvc2VkLCBSZXNvbHZlZCknCikKR09WX09QRU5fRklMVEVSX0pRTCA9ICgKICAgIEJBU0VfT1BFTl9GSUxURVJfSlFMCiAgICArIGYnIEFORCBjcmVhdGVkID49ICJ7R09WRVJOQU5DRV9TVEFSVH0iJwopCgpDQ19SRUdJT05fTEVBRFMgPSAiPEBVMDMxTkJHMEU4Mj4gPEBVMDI2VzNBQ1NVOD4iCkNDX0VOR19UQVhPUFMgICA9ICI8QFUwMjZXM0NDS0xHPiA8QFUwMjZMUktIUzFGPiIKQ0NfTUFOQUdFUlMgICAgID0gIjwhc3VidGVhbV5TMDZVUlFTSkdFTj4iCkNDX1BST0RVQ1RfRU5HICA9ICI8QFUwMjZMUktIUzFGPiA8QFUwMjZXM0NDS0xHPiA8QFUwMUY3TVJTVzVWPiIKQ0NfTEVBREVSU0hJUCAgID0gIjwhc3VidGVhbV5TMEFOUzhYMkI3WT4iCgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBIaXN0b3J5IGhlbHBlcnMKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KCmRlZiBsb2FkX2hpc3RvcnkoKToKICAgIGlmIG9zLnBhdGguZXhpc3RzKEhJU1RPUllfRklMRSk6CiAgICAgICAgd2l0aCBvcGVuKEhJU1RPUllfRklMRSkgYXMgZjoKICAgICAgICAgICAgcmV0dXJuIGpzb24ubG9hZChmKQogICAgcmV0dXJuIHt9CgoKZGVmIHNhdmVfaGlzdG9yeShkYXRhKToKICAgIHdpdGggb3BlbihISVNUT1JZX0ZJTEUsICJ3IikgYXMgZjoKICAgICAgICBqc29uLmR1bXAoZGF0YSwgZiwgaW5kZW50PTIpCgoKZGVmIHdvdyhjdXJyZW50LCBwcmV2KToKICAgIGlmIHByZXYgaXMgTm9uZToKICAgICAgICByZXR1cm4gc3RyKGN1cnJlbnQpCiAgICBkaWZmID0gY3VycmVudCAtIHByZXYKICAgIGlmIGRpZmYgPiAwOgogICAgICAgIHJldHVybiBmIntjdXJyZW50fSAo4oaRe2RpZmZ9IFdvVykiCiAgICBlbGlmIGRpZmYgPCAwOgogICAgICAgIHJldHVybiBmIntjdXJyZW50fSAo4oaTe2FicyhkaWZmKX0gV29XKSIKICAgIHJldHVybiBmIntjdXJyZW50fSAobm8gY2hhbmdlIFdvVykiCgoKIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KIyBMaW5rIGZvcm1hdHRpbmcgaGVscGVycwojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKZGVmIGppcmFfZmlsdGVyX3VybChqcWwpOgogICAgcmV0dXJuICJodHRwczovL3JpcHBsaW5nLmF0bGFzc2lhbi5uZXQvaXNzdWVzLz9qcWw9IiArIHVybGxpYi5wYXJzZS5xdW90ZShqcWwgKyAiIE9SREVSIEJZIGNyZWF0ZWQgQVNDIikKCgpkZWYgZm10X2xpbmtzKGlzc3VlcywganFsX2Zvcl9maWx0ZXIsIGxpbWl0PTUpOgogICAgIiIiCiAgICDiiaQgbGltaXQgdGlja2V0cyDihpIgc3BhY2Utc2VwYXJhdGVkIDxVUkx8S0VZPiBoeXBlcmxpbmtzCiAgICA+ICBsaW1pdCB0aWNrZXRzIOKGkiBzaW5nbGUgbGluayB0byBKaXJhIGZpbHRlciBzaG93aW5nIGFsbCBvZiB0aGVtCiAgICAiIiIKICAgIGlmIG5vdCBpc3N1ZXM6CiAgICAgICAgcmV0dXJuICJub25lIgogICAgaWYgbGVuKGlzc3VlcykgPD0gbGltaXQ6CiAgICAgICAgcmV0dXJuICIgIi5qb2luKGYiPHtpc3N1ZV91cmwoaVsna2V5J10pfXx7aVsna2V5J119PiIgZm9yIGkgaW4gaXNzdWVzKQogICAgdXJsID0gamlyYV9maWx0ZXJfdXJsKGpxbF9mb3JfZmlsdGVyKQogICAgcmV0dXJuIGYiPHt1cmx9fFZpZXcgYWxsIHtsZW4oaXNzdWVzKX0gdGlja2V0cyDihpc+IgoKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgVHJlbmQgYW5hbHlzaXMg4oCUIHJldHVybiBpc3N1ZXMgcGVyIHBhdHRlcm4gc28gd2UgY2FuIGxpbmsgdGhlbQojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKZGVmIHRvcF90YXhfdHlwZXNfd2l0aF9pc3N1ZXMoaXNzdWVzX2xpc3QsIG49NSk6CiAgICAiIiJSZXR1cm5zIFsodGF4X3R5cGVfc3RyLCBbaXNzdWUsIC4uLl0pLCAuLi5dIHNvcnRlZCBieSBjb3VudCBkZXNjLiIiIgogICAgYnVja2V0czogZGljdCA9IHt9CiAgICBmb3IgaXNzdWUgaW4gaXNzdWVzX2xpc3Q6CiAgICAgICAgc3VtbWFyeSA9IGlzc3VlWyJmaWVsZHMiXS5nZXQoInN1bW1hcnkiLCAiIikKICAgICAgICBzZWVuID0gc2V0KCkKICAgICAgICBmb3IgbSBpbiBUQVhfUkUuZmluZGFsbChzdW1tYXJ5KToKICAgICAgICAgICAga2V5ID0gbS51cHBlcigpCiAgICAgICAgICAgIGlmIGtleSBub3QgaW4gc2VlbjoKICAgICAgICAgICAgICAgIGJ1Y2tldHMuc2V0ZGVmYXVsdChrZXksIFtdKS5hcHBlbmQoaXNzdWUpCiAgICAgICAgICAgICAgICBzZWVuLmFkZChrZXkpCiAgICByZXR1cm4gc29ydGVkKGJ1Y2tldHMuaXRlbXMoKSwga2V5PWxhbWJkYSB4OiAtbGVuKHhbMV0pKVs6bl0KCgpkZWYgdG9wX2JpZ3JhbXNfd2l0aF9pc3N1ZXMoaXNzdWVzX2xpc3QsIG49NSwgbWluX2NvdW50PTIpOgogICAgIiIiUmV0dXJucyBbKHBocmFzZV9zdHIsIFtpc3N1ZSwgLi4uXSksIC4uLl0gc29ydGVkIGJ5IGNvdW50IGRlc2MuIiIiCiAgICBwaHJhc2VfbWFwOiBkaWN0ID0ge30KICAgIGZvciBpc3N1ZSBpbiBpc3N1ZXNfbGlzdDoKICAgICAgICBzdW1tYXJ5ID0gaXNzdWVbImZpZWxkcyJdLmdldCgic3VtbWFyeSIsICIiKQogICAgICAgIHdvcmRzID0gW3cgZm9yIHcgaW4gcmUuZmluZGFsbChyJ1xiW2Etel17NCx9XGInLCBzdW1tYXJ5Lmxvd2VyKCkpCiAgICAgICAgICAgICAgICAgaWYgdyBub3QgaW4gU1RPUFdPUkRTIGFuZCB3IG5vdCBpbiBOT0lTRV0KICAgICAgICBzZWVuX2luX3RoaXMgPSBzZXQoKQogICAgICAgIGZvciBpIGluIHJhbmdlKGxlbih3b3JkcykgLSAxKToKICAgICAgICAgICAgcGhyYXNlID0gZiJ7d29yZHNbaV19IHt3b3Jkc1tpICsgMV19IgogICAgICAgICAgICBpZiBwaHJhc2Ugbm90IGluIHNlZW5faW5fdGhpczoKICAgICAgICAgICAgICAgIHBocmFzZV9tYXAuc2V0ZGVmYXVsdChwaHJhc2UsIFtdKS5hcHBlbmQoaXNzdWUpCiAgICAgICAgICAgICAgICBzZWVuX2luX3RoaXMuYWRkKHBocmFzZSkKICAgIGZpbHRlcmVkID0gWyhwLCBpc3MpIGZvciBwLCBpc3MgaW4gcGhyYXNlX21hcC5pdGVtcygpIGlmIGxlbihpc3MpID49IG1pbl9jb3VudF0KICAgIGZpbHRlcmVkLnNvcnQoa2V5PWxhbWJkYSB4OiAtbGVuKHhbMV0pKQogICAgcmV0dXJuIGZpbHRlcmVkWzpuXQoKCiMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiMgTWFpbgojIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQoKZGVmIHJ1bigpOgogICAgaGlzdG9yeSAgID0gbG9hZF9oaXN0b3J5KCkKICAgIGxhc3QgICAgICA9IGhpc3RvcnkuZ2V0KCJsYXN0X3dlZWsiLCB7fSkKCiAgICAjIFdlZWsgbGFiZWwgPSBsYXN0IE1vbuKAk1N1biAoc2NyaXB0IHJ1bnMgTW9uZGF5LCByZXBvcnRzIG9uIHByaW9yIHdlZWspCiAgICB0b2RheSAgICAgICA9IGRhdGV0aW1lLm5vdyhFVCkKICAgIGxhc3RfbW9uZGF5ID0gdG9kYXkgLSB0aW1lZGVsdGEoZGF5cz10b2RheS53ZWVrZGF5KCkgKyA3KQogICAgbGFzdF9zdW5kYXkgPSBsYXN0X21vbmRheSArIHRpbWVkZWx0YShkYXlzPTYpCiAgICB3ZWVrX2xhYmVsICA9IGYie2xhc3RfbW9uZGF5LnN0cmZ0aW1lKCclYiAlZCcpfSDigJMge2xhc3Rfc3VuZGF5LnN0cmZ0aW1lKCclYiAlZCwgJVknKX0iCgogICAgIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgICMgVm9sdW1lOiBhbGwgb3BlbiB0aWNrZXRzIHdpdGggdGhlIHRheG9wcyBsYWJlbAogICAgIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgIGFsbF9pc3N1ZXMgPSBqaXJhX3NlYXJjaCgKICAgICAgICBmJ3tCQVNFX0pRTH0gQU5EIGxhYmVscyA9ICJ1cy10YXhvcHMtdGlja2V0IicsCiAgICAgICAgZmllbGRzPUNPTU1PTl9GSUVMRFMsIG1heF9yZXN1bHRzPTUwMCwKICAgICkKICAgIGFsbF9vcGVuID0gW2kgZm9yIGkgaW4gYWxsX2lzc3VlcwogICAgICAgICAgICAgICAgaWYgKGlbImZpZWxkcyJdLmdldCgic3RhdHVzIikgb3Ige30pLmdldCgibmFtZSIsICIiKSBub3QgaW4gT1BFTl9TVEFUVVNFU19FWENMVURFXQoKICAgICMgTmV3IGludGFrZSBzcGxpdCBieSBpc3N1ZSB0eXBlCiAgICBuZXdfb3BzX3Rhc2tzID0gamlyYV9zZWFyY2goCiAgICAgICAgZid7QkFTRV9KUUx9IEFORCBjcmVhdGVkID49ICItN2QiJywKICAgICAgICBmaWVsZHM9WyJzdW1tYXJ5IiwgImlzc3VldHlwZSJdLAogICAgKQogICAgbmV3X3Rhc2tzID0gamlyYV9zZWFyY2goCiAgICAgICAgZidwcm9qZWN0ID0gUEYgQU5EIGlzc3VldHlwZSA9IFRhc2sgQU5EIGNyZWF0ZWQgPj0gIi03ZCInLAogICAgICAgIGZpZWxkcz1bInN1bW1hcnkiLCAiaXNzdWV0eXBlIl0sCiAgICApCiAgICByZXNvbHZlZF90aGlzX3dlZWsgPSBqaXJhX3NlYXJjaCgKICAgICAgICBmJ3tCQVNFX0pRTH0gQU5EIHN0YXR1cyA9IERvbmUgQU5EIHVwZGF0ZWQgPj0gIi03ZCInLAogICAgICAgIGZpZWxkcz1bInN1bW1hcnkiXSwKICAgICkKCiAgICB0b3RhbF9vcGVuICAgICAgICAgPSBsZW4oYWxsX29wZW4pCiAgICB0b3RhbF9uZXdfb3BzICAgICAgPSBsZW4obmV3X29wc190YXNrcykKICAgIHRvdGFsX25ld190YXNrcyAgICA9IGxlbihuZXdfdGFza3MpCiAgICB0b3RhbF9uZXcgICAgICAgICAgPSB0b3RhbF9uZXdfb3BzICsgdG90YWxfbmV3X3Rhc2tzCiAgICB0b3RhbF9yZXNvbHZlZCAgICAgPSBsZW4ocmVzb2x2ZWRfdGhpc193ZWVrKQoKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICAjIFNMQSAvIFByaW9yaXR5OiBhbGwgb3BlbiB0aWNrZXRzCiAgICAjIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQogICAgc2xhX2JyZWFjaF9pc3N1ZXMgICA9IFtpIGZvciBpIGluIGFsbF9vcGVuIGlmICJzbGEtYnJlYWNoZWQiICAgaW4gZ2V0X2xhYmVscyhpKV0KICAgIHNsYV9hcHByb2FjaF9pc3N1ZXMgPSBbaSBmb3IgaSBpbiBhbGxfb3BlbiBpZiAic2xhLWFwcHJvYWNoaW5nIiBpbiBnZXRfbGFiZWxzKGkpXQogICAgaGlnaGVzdF9pc3N1ZXMgICAgICA9IFtpIGZvciBpIGluIGFsbF9vcGVuCiAgICAgICAgICAgICAgICAgICAgICAgICAgIGlmIChpWyJmaWVsZHMiXS5nZXQoInByaW9yaXR5Iikgb3Ige30pLmdldCgibmFtZSIsICIiKSA9PSAiSGlnaGVzdCJdCiAgICBuX3NsYV9icmVhY2ggPSBsZW4oc2xhX2JyZWFjaF9pc3N1ZXMpCiAgICBuX3NsYV9hcHAgICAgPSBsZW4oc2xhX2FwcHJvYWNoX2lzc3VlcykKICAgIG5faGlnaGVzdCAgICA9IGxlbihoaWdoZXN0X2lzc3VlcykKCiAgICAjIEVzY2FsYXRpb25zOiB0aWNrZXRzIHdpdGggdGF4b3BzX2VzY2FsYXRpb24gbGFiZWwKICAgIGVzY2FsYXRpb25faXNzdWVzID0gW2kgZm9yIGkgaW4gYWxsX29wZW4gaWYgInRheG9wc19lc2NhbGF0aW9uIiBpbiBnZXRfbGFiZWxzKGkpXQogICAgbl9lc2NhbGF0aW9ucyAgICAgPSBsZW4oZXNjYWxhdGlvbl9pc3N1ZXMpCgogICAgIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgICMgR292ZXJuYW5jZTogdGlja2V0cyBjcmVhdGVkIHNpbmNlIEdPVkVSTkFOQ0VfU1RBUlQgb25seQogICAgIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgIGdvdl9pc3N1ZXNfYWxsID0gamlyYV9zZWFyY2goCiAgICAgICAgZid7QkFTRV9KUUx9IEFORCBsYWJlbHMgPSAidXMtdGF4b3BzLXRpY2tldCIgQU5EIGNyZWF0ZWQgPj0gIntHT1ZFUk5BTkNFX1NUQVJUfSInLAogICAgICAgIGZpZWxkcz1DT01NT05fRklFTERTLCBtYXhfcmVzdWx0cz01MDAsCiAgICApCiAgICBnb3ZfaXNzdWVzID0gW2kgZm9yIGkgaW4gZ292X2lzc3Vlc19hbGwKICAgICAgICAgICAgICAgICAgaWYgKGlbImZpZWxkcyJdLmdldCgic3RhdHVzIikgb3Ige30pLmdldCgibmFtZSIsICIiKSBub3QgaW4gT1BFTl9TVEFUVVNFU19FWENMVURFXQoKICAgIHFhX2lzc3VlcyAgICAgICAgPSBbaSBmb3IgaSBpbiBnb3ZfaXNzdWVzIGlmICJxYS1pbmNvbXBsZXRlIiAgICAgICBpbiBnZXRfbGFiZWxzKGkpXQogICAgYmFkX2xhYmVsX2lzc3VlcyA9IFtpIGZvciBpIGluIGdvdl9pc3N1ZXMgaWYgIm1pc3NpbmctbGFiZWxzIiAgICAgIGluIGdldF9sYWJlbHMoaSldCiAgICBzaWdub2ZmX2lzc3VlcyAgID0gW2kgZm9yIGkgaW4gZ292X2lzc3VlcyBpZiAic2lnbm9mZi1taXNtYXRjaCIgICAgaW4gZ2V0X2xhYmVscyhpKV0KICAgIHdmb18yNF9pc3N1ZXMgICAgPSBbaSBmb3IgaSBpbiBnb3ZfaXNzdWVzIGlmICJ3YWl0aW5nLWZvci1vcHMtMjRoIiBpbiBnZXRfbGFiZWxzKGkpXQogICAgd2ZvXzcyX2lzc3VlcyAgICA9IFtpIGZvciBpIGluIGdvdl9pc3N1ZXMgaWYgIndhaXRpbmctZm9yLW9wcy03MmgiIGluIGdldF9sYWJlbHMoaSldCgogICAgbl9xYSAgICAgICAgID0gbGVuKHFhX2lzc3VlcykKICAgIG5fbGFiZWxzX2JhZCA9IGxlbihiYWRfbGFiZWxfaXNzdWVzKQogICAgbl9zaWdub2ZmICAgID0gbGVuKHNpZ25vZmZfaXNzdWVzKQogICAgbl93Zm9fMjQgICAgID0gbGVuKHdmb18yNF9pc3N1ZXMpCiAgICBuX3dmb183MiAgICAgPSBsZW4od2ZvXzcyX2lzc3VlcykKCiAgICAjIEhpZ2ggUmlzazogdW5pcXVlIHRpY2tldHMgYWxyZWFkeSBzdXJmYWNlZCBpbiBLZXkgUmlza3MKICAgICMgKEhpZ2hlc3QgcHJpb3JpdHkgT1IgV0ZPIDcyaCBPUiBTTEEgYnJlYWNoZWQpIOKAlCBzYW1lIGxvZ2ljIGFzIEtleSBSaXNrcyBzZWN0aW9uCiAgICAjIE5PVEU6IG11c3QgY29tZSBBRlRFUiBnb3Zlcm5hbmNlIHNlY3Rpb24gZGVmaW5lcyB3Zm9fNzJfaXNzdWVzCiAgICBoaWdoX3Jpc2tfa2V5cyA9ICgKICAgICAgICB7aVsia2V5Il0gZm9yIGkgaW4gaGlnaGVzdF9pc3N1ZXN9CiAgICAgICAgfCB7aVsia2V5Il0gZm9yIGkgaW4gd2ZvXzcyX2lzc3Vlc30KICAgICAgICB8IHtpWyJrZXkiXSBmb3IgaSBpbiBzbGFfYnJlYWNoX2lzc3Vlc30KICAgICkKICAgIG5faGlnaF9yaXNrID0gbGVuKGhpZ2hfcmlza19rZXlzKQoKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICAjIEppcmEgZmlsdGVyIFVSTHMgKHVzZWQgd2hlbiB0aWNrZXQgY291bnQgPiA1KQogICAgIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgIGpxbF9xYSAgICAgICAgPSBHT1ZfT1BFTl9GSUxURVJfSlFMICsgJyBBTkQgbGFiZWxzID0gInFhLWluY29tcGxldGUiJwogICAganFsX2xhYmVscyAgICA9IEdPVl9PUEVOX0ZJTFRFUl9KUUwgKyAnIEFORCBsYWJlbHMgPSAibWlzc2luZy1sYWJlbHMiJwogICAganFsX3NpZ25vZmYgICA9IEdPVl9PUEVOX0ZJTFRFUl9KUUwgKyAnIEFORCBsYWJlbHMgPSAic2lnbm9mZi1taXNtYXRjaCInCiAgICBqcWxfd2ZvXzI0ICAgID0gR09WX09QRU5fRklMVEVSX0pRTCArICcgQU5EIGxhYmVscyA9ICJ3YWl0aW5nLWZvci1vcHMtMjRoIicKICAgIGpxbF93Zm9fNzIgICAgPSBHT1ZfT1BFTl9GSUxURVJfSlFMICsgJyBBTkQgbGFiZWxzID0gIndhaXRpbmctZm9yLW9wcy03MmgiJwogICAganFsX3NsYV9hcHAgICA9IEJBU0VfT1BFTl9GSUxURVJfSlFMICsgJyBBTkQgbGFiZWxzID0gInNsYS1hcHByb2FjaGluZyInCiAgICBqcWxfc2xhX2JyZWFjaCAgICA9IEJBU0VfT1BFTl9GSUxURVJfSlFMICsgJyBBTkQgbGFiZWxzID0gInNsYS1icmVhY2hlZCInCiAgICBqcWxfaGlnaGVzdCAgICAgICA9IEJBU0VfT1BFTl9GSUxURVJfSlFMICsgJyBBTkQgcHJpb3JpdHkgPSBIaWdoZXN0JwogICAganFsX2VzY2FsYXRpb24gICAgPSBCQVNFX09QRU5fRklMVEVSX0pRTCArICcgQU5EIGxhYmVscyA9ICJ0YXhvcHNfZXNjYWxhdGlvbiInCiAgICBqcWxfaGlnaF9yaXNrICAgICA9IEJBU0VfT1BFTl9GSUxURVJfSlFMICsgJyBBTkQgcHJpb3JpdHkgPSBIaWdoZXN0JyAgIyBmYWxsYmFjayBmaWx0ZXIKCiAgICAjIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQogICAgIyBUcmVuZCBhbmFseXNpcwogICAgIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgIGZsYWdnZWRfaXNzdWVzID0gW2kgZm9yIGkgaW4gZ292X2lzc3VlcwogICAgICAgICAgICAgICAgICAgICAgaWYgYW55KGxibCBpbiBnZXRfbGFiZWxzKGkpIGZvciBsYmwgaW4KICAgICAgICAgICAgICAgICAgICAgICAgICAgICBbInFhLWluY29tcGxldGUiLCAibWlzc2luZy1sYWJlbHMiLCAic2lnbm9mZi1taXNtYXRjaCIsICJzbGEtYnJlYWNoZWQiXSldCgogICAgdGF4X3R5cGVfZGF0YSA9IHRvcF90YXhfdHlwZXNfd2l0aF9pc3N1ZXMoYWxsX29wZW4pCiAgICBiaWdyYW1fZGF0YSAgID0gdG9wX2JpZ3JhbXNfd2l0aF9pc3N1ZXMoZmxhZ2dlZF9pc3N1ZXMpCgogICAgIyBUYXggdHlwZXMgd2l0aCBwZXItdHlwZSBsaW5rcwogICAgdGF4X2xpbmVzID0gW10KICAgIGZvciB0YXhfdHlwZSwgaXNzdWVzIGluIHRheF90eXBlX2RhdGE6CiAgICAgICAganFsID0gQkFTRV9PUEVOX0ZJTFRFUl9KUUwgKyBmJyBBTkQgc3VtbWFyeSB+ICJ7dGF4X3R5cGV9IicKICAgICAgICB0YXhfbGluZXMuYXBwZW5kKGYiICDigKIgKnt0YXhfdHlwZX0qICh7bGVuKGlzc3Vlcyl9KToge2ZtdF9saW5rcyhpc3N1ZXMsIGpxbCl9IikKICAgIHRheF9zdHIgPSAiXG4iLmpvaW4odGF4X2xpbmVzKSBpZiB0YXhfbGluZXMgZWxzZSAiICDigKIgTm9uZSBpZGVudGlmaWVkIgoKICAgICMgUmVjdXJyaW5nIGJpZ3JhbXMgd2l0aCBwZXItcGhyYXNlIGxpbmtzCiAgICBiaWdyYW1fbGluZXMgPSBbXQogICAgZm9yIHBocmFzZSwgaXNzdWVzIGluIGJpZ3JhbV9kYXRhOgogICAgICAgIGpxbCA9IEdPVl9PUEVOX0ZJTFRFUl9KUUwgKyBmJyBBTkQgc3VtbWFyeSB+ICJcXCJ7cGhyYXNlfVxcIiInCiAgICAgICAgYmlncmFtX2xpbmVzLmFwcGVuZChmJyAg4oCiICoie3BocmFzZX0iKiAoe2xlbihpc3N1ZXMpfSk6IHtmbXRfbGlua3MoaXNzdWVzLCBqcWwpfScpCiAgICBiaWdyYW1fc3RyID0gIlxuIi5qb2luKGJpZ3JhbV9saW5lcykgaWYgYmlncmFtX2xpbmVzIGVsc2UgIiAg4oCiIE5vbmUgaWRlbnRpZmllZCIKCiAgICAjIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQogICAgIyBLZXkgUmlza3MKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICByaXNrcyA9IFtdCiAgICBpZiBuX2hpZ2hlc3QgPiAwOgogICAgICAgIHJpc2tzLmFwcGVuZCgKICAgICAgICAgICAgZiJ7bl9oaWdoZXN0fSBIaWdoZXN0IHByaW9yaXR5IHRpY2tldChzKSB1bnJlc29sdmVkOiAiCiAgICAgICAgICAgIGYie2ZtdF9saW5rcyhoaWdoZXN0X2lzc3VlcywganFsX2hpZ2hlc3QpfSIKICAgICAgICApCiAgICBpZiBuX3dmb183MiA+IDA6CiAgICAgICAgcmlza3MuYXBwZW5kKAogICAgICAgICAgICBmIntuX3dmb183Mn0gV2FpdGluZyBmb3IgT3BzIHRpY2tldChzKSBhZ2VkIGJleW9uZCA3MiBob3VyczogIgogICAgICAgICAgICBmIntmbXRfbGlua3Mod2ZvXzcyX2lzc3VlcywganFsX3dmb183Mil9IgogICAgICAgICkKICAgIGlmIG5fc2xhX2JyZWFjaCA+IDA6CiAgICAgICAgcmlza3MuYXBwZW5kKAogICAgICAgICAgICBmIntuX3NsYV9icmVhY2h9IHRpY2tldChzKSBoYXZlIGJyZWFjaGVkIFNMQTogIgogICAgICAgICAgICBmIntmbXRfbGlua3Moc2xhX2JyZWFjaF9pc3N1ZXMsIGpxbF9zbGFfYnJlYWNoKX0iCiAgICAgICAgKQogICAgaWYgbm90IHJpc2tzOgogICAgICAgIHJpc2tzLmFwcGVuZCgiTm8gY3JpdGljYWwgcmlza3MgaWRlbnRpZmllZCB0aGlzIHdlZWsuIikKICAgIHJpc2tzX3N0ciA9ICJcbiIuam9pbihmIuKAoiB7cn0iIGZvciByIGluIHJpc2tzKQoKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICAjIEdvdmVybmFuY2UgdHJlbmQgbGluZSAoZm9yIGhlYWRsaW5lIG5hcnJhdGl2ZSkKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICB0b3RhbF9nb3YgPSBuX3FhICsgbl9sYWJlbHNfYmFkICsgbl9zaWdub2ZmCiAgICBsYXN0X2dvdiAgPSBsYXN0LmdldCgicWEiLCAwKSArIGxhc3QuZ2V0KCJsYWJlbHMiLCAwKSArIGxhc3QuZ2V0KCJzaWdub2ZmIiwgMCkKCiAgICBpZiBub3QgbGFzdDoKICAgICAgICBnb3ZfdHJlbmQgPSAiYmFzZWxpbmUgZXN0YWJsaXNoZWQiCiAgICBlbGlmIHRvdGFsX2dvdiA8IGxhc3RfZ292OgogICAgICAgIGdvdl90cmVuZCA9IGYiaW1wcm92ZWQgZnJvbSB7bGFzdF9nb3Z9IGxhc3Qgd2VlayIKICAgIGVsaWYgdG90YWxfZ292ID4gbGFzdF9nb3Y6CiAgICAgICAgZ292X3RyZW5kID0gZiJ1cCBmcm9tIHtsYXN0X2dvdn0gbGFzdCB3ZWVrIgogICAgZWxzZToKICAgICAgICBnb3ZfdHJlbmQgPSAidW5jaGFuZ2VkIGZyb20gbGFzdCB3ZWVrIgoKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICAjIEhlYWRsaW5lOiAzLWxpbmUgc3RydWN0dXJlZCBmb3JtYXQKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCgogICAgIyBMaW5lIDEg4oCUIGJvbGQgdGl0bGUgKyB3ZWVrIHJhbmdlCiAgICBsaW5lMSA9IGYiKldlZWtseSBUYXhPcHMgSmlyYSBHb3Zlcm5hbmNlIERpZ2VzdCB8IFdlZWsgb2Yge3dlZWtfbGFiZWx9KiIKCiAgICAjIExpbmUgMiDigJQgbWV0cmljcyBzY29yZWNhcmQKICAgIGludGFrZV9zdHIgPSBmInt0b3RhbF9uZXdfb3BzfSBPcHMgLSBDdXN0b21lciBUYXNrIgogICAgaWYgdG90YWxfbmV3X3Rhc2tzID4gMDoKICAgICAgICBpbnRha2Vfc3RyICs9IGYiIHwge3RvdGFsX25ld190YXNrc30gVGFzayDwn5qpIgoKICAgIGxpbmUyID0gIlxuIi5qb2luKFsKICAgICAgICBmIuKAoiBUb3RhbCBCYWNrbG9nOiB7dG90YWxfb3Blbn0gT3BzIC0gQ3VzdG9tZXIgVGFzayIsCiAgICAgICAgZiLigKIgTmV3IEludGFrZToge2ludGFrZV9zdHJ9IiwKICAgICAgICBmIuKAoiBSZXNvbHZlZDoge3RvdGFsX3Jlc29sdmVkfSIsCiAgICAgICAgZiLigKIgV2FpdGluZyBmb3IgT3BzOiB7bl93Zm9fMjQgKyBuX3dmb183Mn0iLAogICAgICAgIGYi4oCiIEhpZ2hlc3QgUHJpb3JpdHk6IHtuX2hpZ2hlc3R9IiwKICAgICAgICBmIuKAoiBFc2NhbGF0aW9uczoge25fZXNjYWxhdGlvbnN9IiwKICAgICAgICBmIuKAoiBIaWdoIFJpc2s6IHtuX2hpZ2hfcmlza30iLAogICAgICAgIGYi4oCiIFNMQSBCcmVhY2hlczoge25fc2xhX2JyZWFjaH0iLAogICAgXSkKCiAgICAjIExpbmUgMyDigJQgYmFja2xvZyBoZWFsdGggKyBnb3Zlcm5hbmNlIHF1YWxpdHkgYXNzZXNzbWVudAogICAgaWYgdG90YWxfbmV3ID4gdG90YWxfcmVzb2x2ZWQ6CiAgICAgICAgYmFja2xvZ19hc3Nlc3NtZW50ID0gKAogICAgICAgICAgICBmIkJhY2tsb2cgZ3JldyB0aGlzIHdlZWsg4oCUIHt0b3RhbF9uZXd9IHRpY2tldHMgaW4gdnMge3RvdGFsX3Jlc29sdmVkfSByZXNvbHZlZC4gIgogICAgICAgICAgICBmIkVuZ2luZWVyaW5nIGlzIG5vdCBrZWVwaW5nIHBhY2Ugd2l0aCBpbmNvbWluZyB2b2x1bWUuIgogICAgICAgICkKICAgIGVsaWYgdG90YWxfcmVzb2x2ZWQgPiB0b3RhbF9uZXc6CiAgICAgICAgYmFja2xvZ19hc3Nlc3NtZW50ID0gKAogICAgICAgICAgICBmIkJhY2tsb2cgaW1wcm92ZWQg4oCUIHt0b3RhbF9yZXNvbHZlZH0gdGlja2V0cyByZXNvbHZlZCB2cyB7dG90YWxfbmV3fSBuZXcuICIKICAgICAgICAgICAgZiJFbmdpbmVlcmluZyBpcyBvdXRwYWNpbmcgaW50YWtlLiIKICAgICAgICApCiAgICBlbHNlOgogICAgICAgIGJhY2tsb2dfYXNzZXNzbWVudCA9ICgKICAgICAgICAgICAgZiJJbnRha2UgYW5kIHJlc29sdXRpb24gYmFsYW5jZWQgdGhpcyB3ZWVrICh7dG90YWxfbmV3fSBpbiwge3RvdGFsX3Jlc29sdmVkfSBvdXQpLiIKICAgICAgICApCgogICAgaWYgdG90YWxfZ292ID49IDU6CiAgICAgICAgZ292X2Fzc2Vzc21lbnQgPSAoCiAgICAgICAgICAgIGYie3RvdGFsX2dvdn0gZ292ZXJuYW5jZSBmbGFncyBkZXRlY3RlZCDigJQgYSBKaXJhIGh5Z2llbmUgcmVmcmVzaGVyIGlzIHJlY29tbWVuZGVkIGZvciB0aGUgdGVhbS4iCiAgICAgICAgKQogICAgZWxpZiB0b3RhbF9nb3YgPj0gMjoKICAgICAgICBnb3ZfYXNzZXNzbWVudCA9ICgKICAgICAgICAgICAgZiJ7dG90YWxfZ292fSBnb3Zlcm5hbmNlIGZsYWd7J3MnIGlmIHRvdGFsX2dvdiAhPSAxIGVsc2UgJyd9IG9uIG5ldyB0aWNrZXRzIOKAlCAiCiAgICAgICAgICAgIGYidGFyZ2V0ZWQgY29hY2hpbmcgb24gc3VibWlzc2lvbiBzdGFuZGFyZHMgbWF5IGJlIG5lZWRlZC4iCiAgICAgICAgKQogICAgZWxpZiB0b3RhbF9nb3YgPT0gMToKICAgICAgICBnb3ZfYXNzZXNzbWVudCA9ICIxIGdvdmVybmFuY2UgZmxhZyB0aGlzIHdlZWsg4oCUIG1pbm9yIGNvYWNoaW5nIG1heSBiZSBuZWVkZWQuIgogICAgZWxzZToKICAgICAgICBnb3ZfYXNzZXNzbWVudCA9ICJUaWNrZXQgcXVhbGl0eSBpcyBzdHJvbmcg4oCUIG5vIGdvdmVybmFuY2UgZmxhZ3MgdGhpcyB3ZWVrLiIKCiAgICBsaW5lMyA9IGYie2JhY2tsb2dfYXNzZXNzbWVudH0ge2dvdl9hc3Nlc3NtZW50fSIKCiAgICBoZWFkbGluZSA9IGYie2xpbmUxfVxuXG57bGluZTJ9XG5cbntsaW5lM31cblxu8J+RhyBGdWxsIGJyZWFrZG93biBpbiB0aHJlYWQiCgogICAgIyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KICAgICMgUmVjb21tZW5kZWQgQWN0aW9ucyAoZHluYW1pYyDigJQgb25seSBpbmNsdWRlIHdoYXQncyByZWxldmFudCkKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICBhY3Rpb25zID0gW10KICAgIGlmIG5fcWEgPiAwIG9yIG5fbGFiZWxzX2JhZCA+IDAgb3Igbl9zaWdub2ZmID4gMDoKICAgICAgICBhY3Rpb25zLmFwcGVuZCgKICAgICAgICAgICAgZiLigKIgUmVnaW9uIExlYWRzOiByZW1lZGlhdGUgaW5jb21wbGV0ZSBRQSB0aWNrZXRzIGFuZCBsYWJlbGluZyBnYXBzLiBjYzoge0NDX1JFR0lPTl9MRUFEU30iCiAgICAgICAgKQogICAgaWYgbl9zbGFfYnJlYWNoID4gMCBvciBuX3NsYV9hcHAgPiAwOgogICAgICAgIGFjdGlvbnMuYXBwZW5kKAogICAgICAgICAgICBmIuKAoiBFbmdpbmVlcmluZyAmIFRheE9wczogcmV2aWV3IGJyZWFjaGVkIGFuZCBuZWFyLWJyZWFjaCBTTEFzLCBhbGlnbiBvbiByZXNvbHV0aW9uLiBjYzoge0NDX0VOR19UQVhPUFN9IgogICAgICAgICkKICAgIGlmIG5fd2ZvXzI0ID4gMCBvciBuX3dmb183MiA+IDA6CiAgICAgICAgYWN0aW9ucy5hcHBlbmQoCiAgICAgICAgICAgIGYi4oCiIE1hbmFnZXJzOiBpbnRlcnZlbmUgb24gV2FpdGluZyBmb3IgT3BzIGl0ZW1zIGJleW9uZCByZXNwb25zZSB0aW1lbGluZXMuIGNjOiB7Q0NfTUFOQUdFUlN9IgogICAgICAgICkKICAgIGlmIGJpZ3JhbV9kYXRhOgogICAgICAgIGFjdGlvbnMuYXBwZW5kKAogICAgICAgICAgICBmIuKAoiBQcm9kdWN0ICYgRW5naW5lZXJpbmc6IGFzc2VzcyByZWN1cnJpbmcgcGF0dGVybnMsIHByaW9yaXRpemUgc3lzdGVtaWMgZml4ZXMuIGNjOiB7Q0NfUFJPRFVDVF9FTkd9IgogICAgICAgICkKICAgIGlmIGxlbihyaXNrcykgPiAxIG9yIGJpZ3JhbV9kYXRhIG9yIG5fc2xhX2JyZWFjaCA+IDA6CiAgICAgICAgYWN0aW9ucy5hcHBlbmQoCiAgICAgICAgICAgIGYi4oCiIExlYWRlcnNoaXA6IGV2YWx1YXRlIHdoZXRoZXIgdHJlbmRzIHdhcnJhbnQgcHJvY2VzcywgdG9vbGluZywgb3Igb3duZXJzaGlwIGNoYW5nZXMuIGNjOiB7Q0NfTEVBREVSU0hJUH0iCiAgICAgICAgKQogICAgYWN0aW9uc19zdHIgPSAiXG4iLmpvaW4oYWN0aW9ucykgaWYgYWN0aW9ucyBlbHNlICLigKIgTm8gYWN0aW9ucyByZXF1aXJlZCB0aGlzIHdlZWsuIgoKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICAjIERldGFpbDogZnVsbCBXQlIgYnJlYWtkb3duICh0aHJlYWQgcmVwbHkg4oCUIG1ya2R3biArIG1lbnRpb25zIHJlbmRlcikKICAgICMgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCiAgICBkZXRhaWwgPSAoCiAgICAgICAgZiIqRXhlY3V0aXZlIFN1bW1hcnkqXG4iCiAgICAgICAgZiJ7d293KHRvdGFsX29wZW4sIGxhc3QuZ2V0KCdvcGVuJykpfSBvcGVuIHRpY2tldHMgIgogICAgICAgIGYiKHt0b3RhbF9uZXd9IG5ldyB8IHt0b3RhbF9yZXNvbHZlZH0gcmVzb2x2ZWQgdGhpcyB3ZWVrKS4gIgogICAgICAgIGYie3dvdyhuX3NsYV9icmVhY2gsIGxhc3QuZ2V0KCdzbGFfYnJlYWNoJykpfSBTTEEgYnJlYWNoeydlcycgaWYgbl9zbGFfYnJlYWNoICE9IDEgZWxzZSAnJ30sICIKICAgICAgICBmIntuX3NsYV9hcHB9IGFwcHJvYWNoaW5nIHRocmVzaG9sZC4gIgogICAgICAgIGYie25fd2ZvXzI0ICsgbl93Zm9fNzJ9IFdhaXRpbmcgZm9yIE9wcy4gIgogICAgICAgIGYiR292ZXJuYW5jZToge3RvdGFsX2dvdn0gZmxhZ3sncycgaWYgdG90YWxfZ292ICE9IDEgZWxzZSAnJ30gKHtnb3ZfdHJlbmR9KS5cblxuIgoKICAgICAgICBmIipRdWFsaXR5IEdhdGUgSXNzdWVzKiBfKG5ldyB0aWNrZXRzIHNpbmNlIHtHT1ZFUk5BTkNFX1NUQVJUfSlfXG4iCiAgICAgICAgZiLigKIgSW5jb21wbGV0ZSBRQToge25fcWF9IOKAlCB7Zm10X2xpbmtzKHFhX2lzc3VlcywganFsX3FhKX1cblxuIgoKICAgICAgICBmIipMYWJlbGluZyAvIFJvdXRpbmcgSXNzdWVzKiBfKG5ldyB0aWNrZXRzIHNpbmNlIHtHT1ZFUk5BTkNFX1NUQVJUfSlfXG4iCiAgICAgICAgZiLigKIgTWlzc2luZyBvciBpbnZhbGlkIGxhYmVsIHF1YWRyYW50czoge25fbGFiZWxzX2JhZH0g4oCUIHtmbXRfbGlua3MoYmFkX2xhYmVsX2lzc3VlcywganFsX2xhYmVscyl9XG4iCiAgICAgICAgZiLigKIgU2lnbi1vZmYgbWlzbWF0Y2hlczoge25fc2lnbm9mZn0g4oCUIHtmbXRfbGlua3Moc2lnbm9mZl9pc3N1ZXMsIGpxbF9zaWdub2ZmKX1cblxuIgoKICAgICAgICBmIipXYWl0aW5nIGZvciBPcHMgQWdpbmcqXG4iCiAgICAgICAgZiLigKIgMjQrIGJ1c2luZXNzIGhvdXJzIHdpdGggbm8gcmVzcG9uc2U6IHtuX3dmb18yNH0g4oCUIHtmbXRfbGlua3Mod2ZvXzI0X2lzc3VlcywganFsX3dmb18yNCl9XG4iCiAgICAgICAgZiLigKIgNzIrIGhvdXJzIHdpdGggbm8gcmVzcG9uc2U6IHtuX3dmb183Mn0g4oCUIHtmbXRfbGlua3Mod2ZvXzcyX2lzc3VlcywganFsX3dmb183Mil9XG5cbiIKCiAgICAgICAgZiIqRW5naW5lZXJpbmcgU0xBIFdhdGNoKlxuIgogICAgICAgIGYi4oCiIEFwcHJvYWNoaW5nIFNMQToge25fc2xhX2FwcH0g4oCUIHtmbXRfbGlua3Moc2xhX2FwcHJvYWNoX2lzc3VlcywganFsX3NsYV9hcHApfVxuIgogICAgICAgIGYi4oCiIEJyZWFjaGVkIFNMQToge25fc2xhX2JyZWFjaH0g4oCUIHtmbXRfbGlua3Moc2xhX2JyZWFjaF9pc3N1ZXMsIGpxbF9zbGFfYnJlYWNoKX1cblxuIgoKICAgICAgICBmIipQb3RlbnRpYWwgVHJlbmRzIGFuZCBCdWxrIElzc3VlcypcbiIKICAgICAgICBmIl9SZWN1cnJpbmcgdGF4IHR5cGVzIChhbGwgb3BlbiB0aWNrZXRzKTpfXG4iCiAgICAgICAgZiJ7dGF4X3N0cn1cblxuIgogICAgICAgIGYiX0NvbW1vbiBwYXR0ZXJucyBpbiBmbGFnZ2VkIHRpY2tldHM6X1xuIgogICAgICAgIGYie2JpZ3JhbV9zdHJ9XG5cbiIKCiAgICAgICAgZiIqS2V5IFJpc2tzKlxuIgogICAgICAgIGYie3Jpc2tzX3N0cn1cblxuIgoKICAgICAgICBmIipSZWNvbW1lbmRlZCBBY3Rpb25zKlxuIgogICAgICAgIGYie2FjdGlvbnNfc3RyfSIKICAgICkKCiAgICBfcmVxLnBvc3QoCiAgICAgICAgU0xBQ0tfV0VCSE9PS19FWEVDLAogICAgICAgIGpzb249eyJoZWFkbGluZSI6IGhlYWRsaW5lLCAiZGV0YWlsIjogZGV0YWlsfSwKICAgICAgICBoZWFkZXJzPXsiQ29udGVudC1UeXBlIjogImFwcGxpY2F0aW9uL2pzb24ifSwKICAgICAgICB0aW1lb3V0PTMwLAogICAgKS5yYWlzZV9mb3Jfc3RhdHVzKCkKICAgIHByaW50KCJbQTZdIFBvc3RlZCB3ZWVrbHkgZGlnZXN0IikKCiAgICBzYXZlX2hpc3RvcnkoewogICAgICAgICJ3ZWVrX2VuZGluZyI6IGRhdGV0aW1lLm5vdyhFVCkuc3RyZnRpbWUoIiVZLSVtLSVkIiksCiAgICAgICAgImxhc3Rfd2VlayI6IHsKICAgICAgICAgICAgIm9wZW4iOiAgICAgICAgIHRvdGFsX29wZW4sCiAgICAgICAgICAgICJuZXciOiAgICAgICAgICB0b3RhbF9uZXcsCiAgICAgICAgICAgICJyZXNvbHZlZCI6ICAgICB0b3RhbF9yZXNvbHZlZCwKICAgICAgICAgICAgInNsYV9icmVhY2giOiAgIG5fc2xhX2JyZWFjaCwKICAgICAgICAgICAgInNsYV9hcHByb2FjaCI6IG5fc2xhX2FwcCwKICAgICAgICAgICAgInFhIjogICAgICAgICAgIG5fcWEsCiAgICAgICAgICAgICJsYWJlbHMiOiAgICAgICBuX2xhYmVsc19iYWQsCiAgICAgICAgICAgICJzaWdub2ZmIjogICAgICBuX3NpZ25vZmYsCiAgICAgICAgICAgICJ3Zm9fMjQiOiAgICAgICBuX3dmb18yNCwKICAgICAgICAgICAgIndmb183MiI6ICAgICAgIG5fd2ZvXzcyLAogICAgICAgIH0KICAgIH0pCiAgICBwcmludCgiW0E2XSBTYXZlZCBXb1cgaGlzdG9yeSIpCgoKaWYgX19uYW1lX18gPT0gIl9fbWFpbl9fIjoKICAgIHJ1bigpCg==
+"""
+A6 — Weekly Executive QA Digest
+Runs every Monday at 12:00 PM ET (16:00 UTC).
+
+Posts to CH_EXEC (#taxops-leadership) via Zapier webhook:
+  headline: short narrative executive summary (top-level post)
+  detail:   full breakdown per WBR spec (thread reply)
+
+Every count includes hyperlinked ticket examples:
+  ≤5 tickets  → list individual <URL|KEY> links
+  >5 tickets  → link to Jira filter URL
+
+WoW comparison stored in taxops/wbr_history.json.
+Governance metrics only cover tickets created >= GOVERNANCE_START.
+SLA and volume metrics cover ALL open tickets.
+"""
+import sys, os, json, re, urllib.parse
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import *
+from datetime import datetime
+from collections import Counter
+import requests as _req
+
+HISTORY_FILE = os.path.join(os.path.dirname(__file__), "wbr_history.json")
+
+TAX_TYPES = ["SUI", "FML", "FUTA", "SUTA", "941", "940", "W-2", "1099",
+             "SDI", "SIT", "FIT", "FICA", "local"]
+TAX_RE = re.compile(r'\b(' + '|'.join(re.escape(t) for t in TAX_TYPES) + r')\b', re.IGNORECASE)
+
+STOPWORDS = {
+    "the","a","an","and","or","for","in","on","at","to","of","is","are",
+    "was","were","with","this","that","from","by","not","be","it","as",
+    "we","i","s","re","has","have","had","will","can","do","did","does",
+    "its","but","so","if","into","than","no","he","she","they","them",
+    "our","you","your","all","new","per","get","via","need","also",
+    "issue","ticket","please","update","pcih","inc","llc","corp",
+    "unable","upload","result","file","help","know","here","what",
+    "when","where","which","then","just","been","have","more","also",
+    "some","such","only","other","than","very","well","back",
+}
+
+NOISE = {"psd", "pjr", "pcih", "ffid", "noticequeue", "task"}
+
+OPEN_STATUSES_EXCLUDE = ("Done", "Closed", "Resolved")
+
+# JQL fragments used for both API fetches and clickable Jira filter URLs
+BASE_OPEN_FILTER_JQL = (
+    'project = PF AND issuetype = "Ops - Customer Task" '
+    'AND labels = "us-taxops-ticket" '
+    'AND status not in (Done, Closed, Resolved)'
+)
+GOV_OPEN_FILTER_JQL = (
+    BASE_OPEN_FILTER_JQL
+    + f' AND created >= "{GOVERNANCE_START}"'
+)
+
+CC_REGION_LEADS = "<@U031NBG0E82> <@U026W3ACSU8>"
+CC_ENG_TAXOPS   = "<@U026W3CCKLG> <@U026LRKHS1F>"
+CC_MANAGERS     = "<!subteam^S06URQSJGEN>"
+CC_PRODUCT_ENG  = "<@U026LRKHS1F> <@U026W3CCKLG> <@U01F7MRSW5V>"
+CC_LEADERSHIP   = "<!subteam^S0ANS8X2B7Y>"
+
+
+# ---------------------------------------------------------------------------
+# History helpers
+# ---------------------------------------------------------------------------
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_history(data):
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def wow(current, prev):
+    if prev is None:
+        return str(current)
+    diff = current - prev
+    if diff > 0:
+        return f"{current} (↑{diff} WoW)"
+    elif diff < 0:
+        return f"{current} (↓{abs(diff)} WoW)"
+    return f"{current} (no change WoW)"
+
+
+# ---------------------------------------------------------------------------
+# Link formatting helpers
+# ---------------------------------------------------------------------------
+
+def jira_filter_url(jql):
+    return "https://rippling.atlassian.net/issues/?jql=" + urllib.parse.quote(jql + " ORDER BY created ASC")
+
+
+def fmt_links(issues, jql_for_filter, limit=5):
+    """
+    <= limit tickets -> space-separated <URL|KEY> hyperlinks
+    >  limit tickets -> single link to Jira filter showing all of them
+    """
+    if not issues:
+        return "none"
+    if len(issues) <= limit:
+        return " ".join(f"<{issue_url(i['key'])}|{i['key']}>" for i in issues)
+    url = jira_filter_url(jql_for_filter)
+    return f"<{url}|View all {len(issues)} tickets ↗>"
+
+
+# ---------------------------------------------------------------------------
+# Trend analysis
+# ---------------------------------------------------------------------------
+
+def top_tax_types_with_issues(issues_list, n=5):
+    """Returns [(tax_type_str, [issue, ...]), ...] sorted by count desc."""
+    buckets: dict = {}
+    for issue in issues_list:
+        summary = issue["fields"].get("summary", "")
+        seen = set()
+        for m in TAX_RE.findall(summary):
+            key = m.upper()
+            if key not in seen:
+                buckets.setdefault(key, []).append(issue)
+                seen.add(key)
+    return sorted(buckets.items(), key=lambda x: -len(x[1]))[:n]
+
+
+def top_bigrams_with_issues(issues_list, n=5, min_count=2):
+    """Returns [(phrase_str, [issue, ...]), ...] sorted by count desc."""
+    phrase_map: dict = {}
+    for issue in issues_list:
+        summary = issue["fields"].get("summary", "")
+        words = [w for w in re.findall(r'\b[a-z]{4,}\b', summary.lower())
+                 if w not in STOPWORDS and w not in NOISE]
+        seen_in_this = set()
+        for i in range(len(words) - 1):
+            phrase = f"{words[i]} {words[i + 1]}"
+            if phrase not in seen_in_this:
+                phrase_map.setdefault(phrase, []).append(issue)
+                seen_in_this.add(phrase)
+    filtered = [(p, iss) for p, iss in phrase_map.items() if len(iss) >= min_count]
+    filtered.sort(key=lambda x: -len(x[1]))
+    return filtered[:n]
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def run():
+    history   = load_history()
+    last      = history.get("last_week", {})
+
+    # Week label = last Mon-Sun (script runs Monday, reports on prior week)
+    today       = datetime.now(ET)
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    last_sunday = last_monday + timedelta(days=6)
+    week_label  = f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d, %Y')}"
+
+    # ------------------------------------------------------------------
+    # Volume: all open tickets with the taxops label
+    # ------------------------------------------------------------------
+    all_issues = jira_search(
+        f'{BASE_JQL} AND labels = "us-taxops-ticket"',
+        fields=COMMON_FIELDS, max_results=500,
+    )
+    all_open = [i for i in all_issues
+                if (i["fields"].get("status") or {}).get("name", "") not in OPEN_STATUSES_EXCLUDE]
+
+    # New intake split by issue type
+    new_ops_tasks = jira_search(
+        f'{BASE_JQL} AND created >= "-7d"',
+        fields=["summary", "issuetype"],
+    )
+    new_tasks = jira_search(
+        f'project = PF AND issuetype = Task AND created >= "-7d"',
+        fields=["summary", "issuetype"],
+    )
+    resolved_this_week = jira_search(
+        f'{BASE_JQL} AND status = Done AND updated >= "-7d"',
+        fields=["summary"],
+    )
+
+    total_open         = len(all_open)
+    total_new_ops      = len(new_ops_tasks)
+    total_new_tasks    = len(new_tasks)
+    total_new          = total_new_ops + total_new_tasks
+    total_resolved     = len(resolved_this_week)
+
+    # ------------------------------------------------------------------
+    # SLA / Priority: all open tickets
+    # ------------------------------------------------------------------
+    sla_breach_issues   = [i for i in all_open if "sla-breached"    in get_labels(i)]
+    sla_approach_issues = [i for i in all_open if "sla-approaching" in get_labels(i)]
+    highest_issues      = [i for i in all_open
+                           if (i["fields"].get("priority") or {}).get("name", "") == "Highest"]
+    n_sla_breach = len(sla_breach_issues)
+    n_sla_app    = len(sla_approach_issues)
+    n_highest    = len(highest_issues)
+
+    # Escalations: tickets with taxops_escalation label
+    escalation_issues = [i for i in all_open if "taxops_escalation" in get_labels(i)]
+    n_escalations     = len(escalation_issues)
+
+    # ------------------------------------------------------------------
+    # Governance: tickets created since GOVERNANCE_START only
+    # ------------------------------------------------------------------
+    gov_issues_all = jira_search(
+        f'{BASE_JQL} AND labels = "us-taxops-ticket" AND created >= "{GOVERNANCE_START}"',
+        fields=COMMON_FIELDS, max_results=500,
+    )
+    gov_issues = [i for i in gov_issues_all
+                  if (i["fields"].get("status") or {}).get("name", "") not in OPEN_STATUSES_EXCLUDE]
+
+    qa_issues        = [i for i in gov_issues if "qa-incomplete"       in get_labels(i)]
+    bad_label_issues = [i for i in gov_issues if "missing-labels"      in get_labels(i)]
+    signoff_issues   = [i for i in gov_issues if "signoff-mismatch"    in get_labels(i)]
+    wfo_24_issues    = [i for i in gov_issues if "waiting-for-ops-24h" in get_labels(i)]
+    wfo_72_issues    = [i for i in gov_issues if "waiting-for-ops-72h" in get_labels(i)]
+
+    n_qa         = len(qa_issues)
+    n_labels_bad = len(bad_label_issues)
+    n_signoff    = len(signoff_issues)
+    n_wfo_24     = len(wfo_24_issues)
+    n_wfo_72     = len(wfo_72_issues)
+
+    # High Risk: unique tickets already surfaced in Key Risks
+    # (Highest priority OR WFO 72h OR SLA breached) — same logic as Key Risks section
+    # NOTE: must come AFTER governance section defines wfo_72_issues
+    high_risk_keys = (
+        {i["key"] for i in highest_issues}
+        | {i["key"] for i in wfo_72_issues}
+        | {i["key"] for i in sla_breach_issues}
+    )
+    n_high_risk = len(high_risk_keys)
+
+    # ------------------------------------------------------------------
+    # Jira filter URLs (used when ticket count > 5)
+    # ------------------------------------------------------------------
+    jql_qa         = GOV_OPEN_FILTER_JQL + ' AND labels = "qa-incomplete"'
+    jql_labels     = GOV_OPEN_FILTER_JQL + ' AND labels = "missing-labels"'
+    jql_signoff    = GOV_OPEN_FILTER_JQL + ' AND labels = "signoff-mismatch"'
+    jql_wfo_24     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
+    jql_wfo_72     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
+    jql_sla_app    = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-approaching"'
+    jql_sla_breach = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
+    jql_highest    = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
+    jql_escalation = BASE_OPEN_FILTER_JQL + ' AND labels = "taxops_escalation"'
+    jql_high_risk  = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'  # fallback filter
+
+    # ------------------------------------------------------------------
+    # Trend analysis
+    # ------------------------------------------------------------------
+    flagged_issues = [i for i in gov_issues
+                      if any(lbl in get_labels(i) for lbl in
+                             ["qa-incomplete", "missing-labels", "signoff-mismatch", "sla-breached"])]
+
+    tax_type_data = top_tax_types_with_issues(all_open)
+    bigram_data   = top_bigrams_with_issues(flagged_issues)
+
+    # Tax types with per-type links
+    tax_lines = []
+    for tax_type, issues in tax_type_data:
+        jql = BASE_OPEN_FILTER_JQL + f' AND summary ~ "{tax_type}"'
+        tax_lines.append(f"  • *{tax_type}* ({len(issues)}): {fmt_links(issues, jql)}")
+    tax_str = "\n".join(tax_lines) if tax_lines else "  • None identified"
+
+    # Recurring bigrams with per-phrase links
+    bigram_lines = []
+    for phrase, issues in bigram_data:
+        jql = GOV_OPEN_FILTER_JQL + f' AND summary ~ "\\"{phrase}\\""'
+        bigram_lines.append(f'  • *"{phrase}"* ({len(issues)}): {fmt_links(issues, jql)}')
+    bigram_str = "\n".join(bigram_lines) if bigram_lines else "  • None identified"
+
+    # ------------------------------------------------------------------
+    # Key Risks
+    # ------------------------------------------------------------------
+    risks = []
+    if n_highest > 0:
+        risks.append(
+            f"{n_highest} Highest priority ticket(s) unresolved: "
+            f"{fmt_links(highest_issues, jql_highest)}"
+        )
+    if n_wfo_72 > 0:
+        risks.append(
+            f"{n_wfo_72} Waiting for Ops ticket(s) aged beyond 72 hours: "
+            f"{fmt_links(wfo_72_issues, jql_wfo_72)}"
+        )
+    if n_sla_breach > 0:
+        risks.append(
+            f"{n_sla_breach} ticket(s) have breached SLA: "
+            f"{fmt_links(sla_breach_issues, jql_sla_breach)}"
+        )
+    if not risks:
+        risks.append("No critical risks identified this week.")
+    risks_str = "\n".join(f"• {r}" for r in risks)
+
+    # ------------------------------------------------------------------
+    # Governance trend line (for headline narrative)
+    # ------------------------------------------------------------------
+    total_gov = n_qa + n_labels_bad + n_signoff
+    last_gov  = last.get("qa", 0) + last.get("labels", 0) + last.get("signoff", 0)
+
+    if not last:
+        gov_trend = "baseline established"
+    elif total_gov < last_gov:
+        gov_trend = f"improved from {last_gov} last week"
+    elif total_gov > last_gov:
+        gov_trend = f"up from {last_gov} last week"
+    else:
+        gov_trend = "unchanged from last week"
+
+    # ------------------------------------------------------------------
+    # Headline: 3-line structured format
+    # ------------------------------------------------------------------
+
+    # Line 1 - bold title + week range
+    line1 = f"*Weekly TaxOps Jira Governance Digest | Week of {week_label}*"
+
+    # Line 2 - metrics scorecard
+    intake_str = f"{total_new_ops} Ops - Customer Task"
+    if total_new_tasks > 0:
+        intake_str += f" | {total_new_tasks} Task \U0001f6a9"
+
+    line2 = "\n".join([
+        f"• Total Backlog: {total_open} Ops - Customer Task",
+        f"• New Intake: {intake_str}",
+        f"• Resolved: {total_resolved}",
+        f"• Waiting for Ops: {n_wfo_24 + n_wfo_72}",
+        f"• Highest Priority: {n_highest}",
+        f"• Escalations: {n_escalations}",
+        f"• High Risk: {n_high_risk}",
+        f"• SLA Breaches: {n_sla_breach}",
+    ])
+
+    # Line 3 - backlog health + governance quality assessment
+    if total_new > total_resolved:
+        backlog_assessment = (
+            f"Backlog grew this week — {total_new} tickets in vs {total_resolved} resolved. "
+            f"Engineering is not keeping pace with incoming volume."
+        )
+    elif total_resolved > total_new:
+        backlog_assessment = (
+            f"Backlog improved — {total_resolved} tickets resolved vs {total_new} new. "
+            f"Engineering is outpacing intake."
+        )
+    else:
+        backlog_assessment = (
+            f"Intake and resolution balanced this week ({total_new} in, {total_resolved} out)."
+        )
+
+    if total_gov >= 5:
+        gov_assessment = (
+            f"{total_gov} governance flags detected — a Jira hygiene refresher is recommended for the team."
+        )
+    elif total_gov >= 2:
+        gov_assessment = (
+            f"{total_gov} governance flag{'s' if total_gov != 1 else ''} on new tickets — "
+            f"targeted coaching on submission standards may be needed."
+        )
+    elif total_gov == 1:
+        gov_assessment = "1 governance flag this week — minor coaching may be needed."
+    else:
+        gov_assessment = "Ticket quality is strong — no governance flags this week."
+
+    line3 = f"{backlog_assessment} {gov_assessment}"
+
+    headline = f"{line1}\n\n{line2}\n\n{line3}\n\n\U0001f447 Full breakdown in thread"
+
+    # ------------------------------------------------------------------
+    # Recommended Actions (dynamic - only include what's relevant)
+    # ------------------------------------------------------------------
+    actions = []
+    if n_qa > 0 or n_labels_bad > 0 or n_signoff > 0:
+        actions.append(
+            f"• Region Leads: remediate incomplete QA tickets and labeling gaps. cc: {CC_REGION_LEADS}"
+        )
+    if n_sla_breach > 0 or n_sla_app > 0:
+        actions.append(
+            f"• Engineering & TaxOps: review breached and near-breach SLAs, align on resolution. cc: {CC_ENG_TAXOPS}"
+        )
+    if n_wfo_24 > 0 or n_wfo_72 > 0:
+        actions.append(
+            f"• Managers: intervene on Waiting for Ops items beyond response timelines. cc: {CC_MANAGERS}"
+        )
+    if bigram_data:
+        actions.append(
+            f"• Product & Engineering: assess recurring patterns, prioritize systemic fixes. cc: {CC_PRODUCT_ENG}"
+        )
+    if len(risks) > 1 or bigram_data or n_sla_breach > 0:
+        actions.append(
+            f"• Leadership: evaluate whether trends warrant process, tooling, or ownership changes. cc: {CC_LEADERSHIP}"
+        )
+    actions_str = "\n".join(actions) if actions else "• No actions required this week."
+
+    # ------------------------------------------------------------------
+    # Detail: full WBR breakdown (thread reply - mrkdwn + mentions render)
+    # ------------------------------------------------------------------
+    detail = (
+        f"*Executive Summary*\n"
+        f"{wow(total_open, last.get('open'))} open tickets "
+        f"({total_new} new | {total_resolved} resolved this week). "
+        f"{wow(n_sla_breach, last.get('sla_breach'))} SLA breach{'es' if n_sla_breach != 1 else ''}, "
+        f"{n_sla_app} approaching threshold. "
+        f"{n_wfo_24 + n_wfo_72} Waiting for Ops. "
+        f"Governance: {total_gov} flag{'s' if total_gov != 1 else ''} ({gov_trend}).\n\n"
+
+        f"*Quality Gate Issues* _(new tickets since {GOVERNANCE_START})_\n"
+        f"• Incomplete QA: {n_qa} — {fmt_links(qa_issues, jql_qa)}\n\n"
+
+        f"*Labeling / Routing Issues* _(new tickets since {GOVERNANCE_START})_\n"
+        f"• Missing or invalid label quadrants: {n_labels_bad} — {fmt_links(bad_label_issues, jql_labels)}\n"
+        f"• Sign-off mismatches: {n_signoff} — {fmt_links(signoff_issues, jql_signoff)}\n\n"
+
+        f"*Waiting for Ops Aging*\n"
+        f"• 24+ business hours with no response: {n_wfo_24} — {fmt_links(wfo_24_issues, jql_wfo_24)}\n"
+        f"• 72+ hours with no response: {n_wfo_72} — {fmt_links(wfo_72_issues, jql_wfo_72)}\n\n"
+
+        f"*Engineering SLA Watch*\n"
+        f"• Approaching SLA: {n_sla_app} — {fmt_links(sla_approach_issues, jql_sla_app)}\n"
+        f"• Breached SLA: {n_sla_breach} — {fmt_links(sla_breach_issues, jql_sla_breach)}\n\n"
+
+        f"*Potential Trends and Bulk Issues*\n"
+        f"_Recurring tax types (all open tickets):_\n"
+        f"{tax_str}\n\n"
+        f"_Common patterns in flagged tickets:_\n"
+        f"{bigram_str}\n\n"
+
+        f"*Key Risks*\n"
+        f"{risks_str}\n\n"
+
+        f"*Recommended Actions*\n"
+        f"{actions_str}"
+    )
+
+    _req.post(
+        SLACK_WEBHOOK_EXEC,
+        json={"headline": headline, "detail": detail},
+        headers={"Content-Type": "application/json"},
+        timeout=30,
+    ).raise_for_status()
+    print("[A6] Posted weekly digest")
+
+    save_history({
+        "week_ending": datetime.now(ET).strftime("%Y-%m-%d"),
+        "last_week": {
+            "open":         total_open,
+            "new":          total_new,
+            "resolved":     total_resolved,
+            "sla_breach":   n_sla_breach,
+            "sla_approach": n_sla_app,
+            "qa":           n_qa,
+            "labels":       n_labels_bad,
+            "signoff":      n_signoff,
+            "wfo_24":       n_wfo_24,
+            "wfo_72":       n_wfo_72,
+        }
+    })
+    print("[A6] Saved WoW history")
+
+
+if __name__ == "__main__":
+    run()

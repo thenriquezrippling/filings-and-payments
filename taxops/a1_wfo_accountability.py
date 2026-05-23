@@ -8,11 +8,18 @@ Escalation ladder:
   72h calendar → Hard escalation + tag secondary leader group
   Done → Completion update + clean WFO labels
 
+Special rule: tickets reported by Vijay Kumar or Rashmita Topakulu
+trigger an immediate FYI alert to Rana and Tony when they enter WFO.
+
 Dedup via AUTO_FLAG comments on each Jira issue (survives restarts).
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
+
+# Reporters whose WFO entry triggers a direct alert to Rana + Tony
+SPECIAL_REPORTER_NAMES = {"vijay kumar", "rashmita topakulu"}
+TONY_SLACK_UID = os.getenv("TONY_SLACK_UID", "")
 
 
 def run():
@@ -77,6 +84,17 @@ def _process(issue, key, summary, url, labels, is_peo,
             f"{summary}\nAssignee: {assignee_name} | Ops team: please respond.",
             CH_OPS,
         )
+
+        # Special alert: Vijay / Rashmita tickets need Rana + Tony looped in immediately
+        reporter_name = ((issue["fields"].get("reporter") or {}).get("displayName") or "").lower()
+        if reporter_name in SPECIAL_REPORTER_NAMES:
+            rana_tag = f"<@{RANA_UID}>" if RANA_UID else "Rana"
+            tony_tag = f"<@{TONY_SLACK_UID}>" if TONY_SLACK_UID else "Tony"
+            slack_post(
+                f":bell: *FYI* {rana_tag} {tony_tag} — <{url}|{key}> was submitted by "
+                f"{reporter_name.title()} and has entered Waiting for Ops.\n{summary}",
+                CH_OPS,
+            )
         return
 
     # Level 1: 24 business hours

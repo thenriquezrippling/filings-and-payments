@@ -2,7 +2,7 @@ name: TaxOps Weekly Digest (Mon 12 PM ET)
 
 on:
   schedule:
-    - cron: '0 17 * * 1'
+    - cron: '0 16 * * 1'
   workflow_dispatch:
 
 jobs:
@@ -25,3 +25,10 @@ jobs:
       - name: A6 - Weekly Executive QA Digest
         working-directory: taxops
         run: python a6_weekly_digest.py
+      - name: Commit WoW history
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add taxops/wbr_history.json
+          git diff --staged --quiet || git commit -m "chore: update WBR history [skip ci]"
+          git push

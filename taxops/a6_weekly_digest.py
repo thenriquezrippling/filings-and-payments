@@ -152,7 +152,12 @@ def top_bigrams_with_issues(issues_list, n=5, min_count=2):
 def run():
     history   = load_history()
     last      = history.get("last_week", {})
-    week_label = datetime.now(ET).strftime("%B %d, %Y")
+
+    # Week label = last Mon–Sun (script runs Monday, reports on prior week)
+    today       = datetime.now(ET)
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    last_sunday = last_monday + timedelta(days=6)
+    week_label  = f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d, %Y')}"
 
     # ------------------------------------------------------------------
     # Volume: all open tickets with the taxops label
@@ -164,18 +169,25 @@ def run():
     all_open = [i for i in all_issues
                 if (i["fields"].get("status") or {}).get("name", "") not in OPEN_STATUSES_EXCLUDE]
 
-    new_this_week = jira_search(
+    # New intake split by issue type
+    new_ops_tasks = jira_search(
         f'{BASE_JQL} AND created >= "-7d"',
-        fields=["summary"],
+        fields=["summary", "issuetype"],
+    )
+    new_tasks = jira_search(
+        f'project = PF AND issuetype = Task AND created >= "-7d"',
+        fields=["summary", "issuetype"],
     )
     resolved_this_week = jira_search(
         f'{BASE_JQL} AND status = Done AND updated >= "-7d"',
         fields=["summary"],
     )
 
-    total_open     = len(all_open)
-    total_new      = len(new_this_week)
-    total_resolved = len(resolved_this_week)
+    total_open         = len(all_open)
+    total_new_ops      = len(new_ops_tasks)
+    total_new_tasks    = len(new_tasks)
+    total_new          = total_new_ops + total_new_tasks
+    total_resolved     = len(resolved_this_week)
 
     # ------------------------------------------------------------------
     # SLA / Priority: all open tickets
@@ -187,6 +199,19 @@ def run():
     n_sla_breach = len(sla_breach_issues)
     n_sla_app    = len(sla_approach_issues)
     n_highest    = len(highest_issues)
+
+    # Escalations: tickets with taxops_escalation label
+    escalation_issues = [i for i in all_open if "taxops_escalation" in get_labels(i)]
+    n_escalations     = len(escalation_issues)
+
+    # High Risk: unique tickets already surfaced in Key Risks
+    # (Highest priority OR WFO 72h OR SLA breached) — same logic as Key Risks section
+    high_risk_keys   = (
+        {i["key"] for i in highest_issues}
+        | {i["key"] for i in wfo_72_issues}
+        | {i["key"] for i in sla_breach_issues}
+    )
+    n_high_risk = len(high_risk_keys)
 
     # ------------------------------------------------------------------
     # Governance: tickets created since GOVERNANCE_START only
@@ -219,8 +244,10 @@ def run():
     jql_wfo_24    = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
     jql_wfo_72    = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
     jql_sla_app   = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-approaching"'
-    jql_sla_breach = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
-    jql_highest   = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
+    jql_sla_breach    = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
+    jql_highest       = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
+    jql_escalation    = BASE_OPEN_FILTER_JQL + ' AND labels = "taxops_escalation"'
+    jql_high_risk     = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'  # fallback filter
 
     # ------------------------------------------------------------------
     # Trend analysis
@@ -285,25 +312,61 @@ def run():
         gov_trend = "unchanged from last week"
 
     # ------------------------------------------------------------------
-    # Headline: short narrative (no bold, no mentions — plain top-level)
+    # Headline: 3-line structured format
     # ------------------------------------------------------------------
-    headline_sentences = [f"Week of {week_label}:"]
-    headline_sentences.append(
-        f"{wow(total_open, last.get('open'))} open tickets "
-        f"({total_new} new, {total_resolved} resolved this week)."
-    )
-    if n_sla_breach > 0:
-        headline_sentences.append(
-            f"{wow(n_sla_breach, last.get('sla_breach'))} SLA breach{'es' if n_sla_breach != 1 else ''}."
+
+    # Line 1 — bold title + week range
+    line1 = f"*Weekly TaxOps Jira Governance Digest | Week of {week_label}*"
+
+    # Line 2 — metrics scorecard
+    intake_str = f"{total_new_ops} Ops - Customer Task"
+    if total_new_tasks > 0:
+        intake_str += f" | {total_new_tasks} Task 🚩"
+
+    line2 = "\n".join([
+        f"• Total Backlog: {total_open} Ops - Customer Task",
+        f"• New Intake: {intake_str}",
+        f"• Resolved: {total_resolved}",
+        f"• Waiting for Ops: {n_wfo_24 + n_wfo_72}",
+        f"• Highest Priority: {n_highest}",
+        f"• Escalations: {n_escalations}",
+        f"• High Risk: {n_high_risk}",
+        f"• SLA Breaches: {n_sla_breach}",
+    ])
+
+    # Line 3 — backlog health + governance quality assessment
+    if total_new > total_resolved:
+        backlog_assessment = (
+            f"Backlog grew this week — {total_new} tickets in vs {total_resolved} resolved. "
+            f"Engineering is not keeping pace with incoming volume."
         )
-    if n_wfo_24 + n_wfo_72 > 0:
-        headline_sentences.append(f"{n_wfo_24 + n_wfo_72} items awaiting Ops response.")
-    if total_gov > 0:
-        headline_sentences.append(
-            f"{total_gov} governance flag{'s' if total_gov != 1 else ''} on new tickets ({gov_trend})."
+    elif total_resolved > total_new:
+        backlog_assessment = (
+            f"Backlog improved — {total_resolved} tickets resolved vs {total_new} new. "
+            f"Engineering is outpacing intake."
+        )
+    else:
+        backlog_assessment = (
+            f"Intake and resolution balanced this week ({total_new} in, {total_resolved} out)."
         )
 
-    headline = "Weekly TaxOps Jira Governance Digest\n" + " ".join(headline_sentences)
+    if total_gov >= 5:
+        gov_assessment = (
+            f"{total_gov} governance flags detected — a Jira hygiene refresher is recommended for the team."
+        )
+    elif total_gov >= 2:
+        gov_assessment = (
+            f"{total_gov} governance flag{'s' if total_gov != 1 else ''} on new tickets — "
+            f"targeted coaching on submission standards may be needed."
+        )
+    elif total_gov == 1:
+        gov_assessment = "1 governance flag this week — minor coaching may be needed."
+    else:
+        gov_assessment = "Ticket quality is strong — no governance flags this week."
+
+    line3 = f"{backlog_assessment} {gov_assessment}"
+
+    headline = f"{line1}\n\n{line2}\n\n{line3}\n\n👇 Full breakdown in thread"
 
     # ------------------------------------------------------------------
     # Recommended Actions (dynamic — only include what's relevant)

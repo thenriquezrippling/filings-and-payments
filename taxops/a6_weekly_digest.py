@@ -7,8 +7,8 @@ Posts to CH_EXEC (#taxops-leadership) via Zapier webhook:
   detail:   full breakdown per WBR spec (thread reply)
 
 Every count includes hyperlinked ticket examples:
-  ≤5 tickets  → list individual <URL|KEY> links
-  >5 tickets  → link to Jira filter URL
+  <=5 tickets  -> list individual <URL|KEY> links
+  >5 tickets   -> link to Jira filter URL
 
 WoW comparison stored in taxops/wbr_history.json.
 Governance metrics only cover tickets created >= GOVERNANCE_START.
@@ -204,6 +204,28 @@ def run():
     escalation_issues = [i for i in all_open if "taxops_escalation" in get_labels(i)]
     n_escalations     = len(escalation_issues)
 
+    # Inactive assignees: open tickets assigned to a deactivated Jira user
+    inactive_assignee_issues = [
+        i for i in all_open
+        if (i["fields"].get("assignee") or {}).get("active") is False
+    ]
+    n_inactive_assignee = len(inactive_assignee_issues)
+    # Build a clickable filter URL using the actual inactive account IDs found
+    if inactive_assignee_issues:
+        _inactive_ids = list({
+            (i["fields"]["assignee"] or {}).get("accountId", "")
+            for i in inactive_assignee_issues
+            if (i["fields"].get("assignee") or {}).get("accountId")
+        })
+        jql_inactive = (
+            BASE_OPEN_FILTER_JQL
+            + " AND assignee in ("
+            + ",".join(f'"{aid}"' for aid in _inactive_ids)
+            + ")"
+        )
+    else:
+        jql_inactive = BASE_OPEN_FILTER_JQL  # fallback, never rendered when count=0
+
     # ------------------------------------------------------------------
     # Governance: tickets created since GOVERNANCE_START only
     # ------------------------------------------------------------------
@@ -227,7 +249,7 @@ def run():
     n_wfo_72     = len(wfo_72_issues)
 
     # High Risk: unique tickets already surfaced in Key Risks
-    # (Highest priority OR WFO 72h OR SLA breached) — same logic as Key Risks section
+    # (Highest priority OR WFO 72h OR SLA breached)
     # NOTE: must come AFTER governance section defines wfo_72_issues
     high_risk_keys = (
         {i["key"] for i in highest_issues}
@@ -260,14 +282,12 @@ def run():
     tax_type_data = top_tax_types_with_issues(all_open)
     bigram_data   = top_bigrams_with_issues(flagged_issues)
 
-    # Tax types with per-type links
     tax_lines = []
     for tax_type, issues in tax_type_data:
         jql = BASE_OPEN_FILTER_JQL + f' AND summary ~ "{tax_type}"'
         tax_lines.append(f"  • *{tax_type}* ({len(issues)}): {fmt_links(issues, jql)}")
     tax_str = "\n".join(tax_lines) if tax_lines else "  • None identified"
 
-    # Recurring bigrams with per-phrase links
     bigram_lines = []
     for phrase, issues in bigram_data:
         jql = GOV_OPEN_FILTER_JQL + f' AND summary ~ "\\"{phrase}\\""'
@@ -293,12 +313,17 @@ def run():
             f"{n_sla_breach} ticket(s) have breached SLA: "
             f"{fmt_links(sla_breach_issues, jql_sla_breach)}"
         )
+    if n_inactive_assignee > 0:
+        risks.append(
+            f"{n_inactive_assignee} ticket(s) assigned to inactive users — reassignment needed: "
+            f"{fmt_links(inactive_assignee_issues, jql_inactive)}"
+        )
     if not risks:
         risks.append("No critical risks identified this week.")
     risks_str = "\n".join(f"• {r}" for r in risks)
 
     # ------------------------------------------------------------------
-    # Governance trend line (for headline narrative)
+    # Governance trend line
     # ------------------------------------------------------------------
     total_gov = n_qa + n_labels_bad + n_signoff
     last_gov  = last.get("qa", 0) + last.get("labels", 0) + last.get("signoff", 0)
@@ -315,11 +340,8 @@ def run():
     # ------------------------------------------------------------------
     # Headline: 3-line structured format
     # ------------------------------------------------------------------
-
-    # Line 1 - bold title + week range
     line1 = f"*Weekly TaxOps Jira Governance Digest | Week of {week_label}*"
 
-    # Line 2 - metrics scorecard
     intake_str = f"{total_new_ops} Ops - Customer Task"
     if total_new_tasks > 0:
         intake_str += f" | {total_new_tasks} Task \U0001f6a9"
@@ -333,9 +355,9 @@ def run():
         f"• Escalations: {n_escalations}",
         f"• High Risk: {n_high_risk}",
         f"• SLA Breaches: {n_sla_breach}",
+        f"• Inactive Assignees: {n_inactive_assignee}",
     ])
 
-    # Line 3 - backlog health + governance quality assessment
     if total_new > total_resolved:
         backlog_assessment = (
             f"Backlog grew this week — {total_new} tickets in vs {total_resolved} resolved. "
@@ -370,7 +392,7 @@ def run():
     headline = f"{line1}\n\n{line2}\n\n{line3}\n\n\U0001f447 Full breakdown in thread"
 
     # ------------------------------------------------------------------
-    # Recommended Actions (dynamic - only include what's relevant)
+    # Recommended Actions (dynamic)
     # ------------------------------------------------------------------
     actions = []
     if n_qa > 0 or n_labels_bad > 0 or n_signoff > 0:
@@ -385,6 +407,10 @@ def run():
         actions.append(
             f"• Managers: intervene on Waiting for Ops items beyond response timelines. cc: {CC_MANAGERS}"
         )
+    if n_inactive_assignee > 0:
+        actions.append(
+            f"• Managers: reassign tickets currently owned by inactive users. cc: {CC_MANAGERS}"
+        )
     if bigram_data:
         actions.append(
             f"• Product & Engineering: assess recurring patterns, prioritize systemic fixes. cc: {CC_PRODUCT_ENG}"
@@ -396,7 +422,7 @@ def run():
     actions_str = "\n".join(actions) if actions else "• No actions required this week."
 
     # ------------------------------------------------------------------
-    # Detail: full WBR breakdown (thread reply - mrkdwn + mentions render)
+    # Detail: full WBR breakdown (thread reply)
     # ------------------------------------------------------------------
     detail = (
         f"*Executive Summary*\n"
@@ -421,6 +447,9 @@ def run():
         f"*Engineering SLA Watch*\n"
         f"• Approaching SLA: {n_sla_app} — {fmt_links(sla_approach_issues, jql_sla_app)}\n"
         f"• Breached SLA: {n_sla_breach} — {fmt_links(sla_breach_issues, jql_sla_breach)}\n\n"
+
+        f"*Assignment Issues*\n"
+        f"• Assigned to inactive users: {n_inactive_assignee} — {fmt_links(inactive_assignee_issues, jql_inactive)}\n\n"
 
         f"*Potential Trends and Bulk Issues*\n"
         f"_Recurring tax types (all open tickets):_\n"

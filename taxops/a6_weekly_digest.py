@@ -43,7 +43,6 @@ NOISE = {"psd", "pjr", "pcih", "ffid", "noticequeue", "task"}
 
 OPEN_STATUSES_EXCLUDE = ("Done", "Closed", "Resolved")
 
-# JQL fragments used for both API fetches and clickable Jira filter URLs
 BASE_OPEN_FILTER_JQL = (
     'project = PF AND issuetype = "Ops - Customer Task" '
     'AND labels = "us-taxops-ticket" '
@@ -97,10 +96,6 @@ def jira_filter_url(jql):
 
 
 def fmt_links(issues, jql_for_filter, limit=5):
-    """
-    ≤ limit tickets → space-separated <URL|KEY> hyperlinks
-    >  limit tickets → single link to Jira filter showing all of them
-    """
     if not issues:
         return "none"
     if len(issues) <= limit:
@@ -110,11 +105,10 @@ def fmt_links(issues, jql_for_filter, limit=5):
 
 
 # ---------------------------------------------------------------------------
-# Trend analysis — return issues per pattern so we can link them
+# Trend analysis
 # ---------------------------------------------------------------------------
 
 def top_tax_types_with_issues(issues_list, n=5):
-    """Returns [(tax_type_str, [issue, ...]), ...] sorted by count desc."""
     buckets: dict = {}
     for issue in issues_list:
         summary = issue["fields"].get("summary", "")
@@ -128,7 +122,6 @@ def top_tax_types_with_issues(issues_list, n=5):
 
 
 def top_bigrams_with_issues(issues_list, n=5, min_count=2):
-    """Returns [(phrase_str, [issue, ...]), ...] sorted by count desc."""
     phrase_map: dict = {}
     for issue in issues_list:
         summary = issue["fields"].get("summary", "")
@@ -150,8 +143,8 @@ def top_bigrams_with_issues(issues_list, n=5, min_count=2):
 # ---------------------------------------------------------------------------
 
 def run():
-    history   = load_history()
-    last      = history.get("last_week", {})
+    history  = load_history()
+    last     = history.get("last_week", {})
 
     # Week label = last Mon–Sun (script runs Monday, reports on prior week)
     today       = datetime.now(ET)
@@ -169,7 +162,6 @@ def run():
     all_open = [i for i in all_issues
                 if (i["fields"].get("status") or {}).get("name", "") not in OPEN_STATUSES_EXCLUDE]
 
-    # New intake split by issue type
     new_ops_tasks = jira_search(
         f'{BASE_JQL} AND created >= "-7d"',
         fields=["summary", "issuetype"],
@@ -183,16 +175,16 @@ def run():
         fields=["summary"],
     )
 
-    total_open         = len(all_open)
-    total_new_ops      = len(new_ops_tasks)
-    total_new_tasks    = len(new_tasks)
-    total_new          = total_new_ops + total_new_tasks
-    total_resolved     = len(resolved_this_week)
+    total_open      = len(all_open)
+    total_new_ops   = len(new_ops_tasks)
+    total_new_tasks = len(new_tasks)
+    total_new       = total_new_ops + total_new_tasks
+    total_resolved  = len(resolved_this_week)
 
     # ------------------------------------------------------------------
     # SLA / Priority: all open tickets
     # ------------------------------------------------------------------
-    sla_breach_issues   = [i for i in all_open if "sla-breached"   in get_labels(i)]
+    sla_breach_issues   = [i for i in all_open if "sla-breached"    in get_labels(i)]
     sla_approach_issues = [i for i in all_open if "sla-approaching" in get_labels(i)]
     highest_issues      = [i for i in all_open
                            if (i["fields"].get("priority") or {}).get("name", "") == "Highest"]
@@ -203,15 +195,6 @@ def run():
     # Escalations: tickets with taxops_escalation label
     escalation_issues = [i for i in all_open if "taxops_escalation" in get_labels(i)]
     n_escalations     = len(escalation_issues)
-
-    # High Risk: unique tickets already surfaced in Key Risks
-    # (Highest priority OR WFO 72h OR SLA breached) — same logic as Key Risks section
-    high_risk_keys   = (
-        {i["key"] for i in highest_issues}
-        | {i["key"] for i in wfo_72_issues}
-        | {i["key"] for i in sla_breach_issues}
-    )
-    n_high_risk = len(high_risk_keys)
 
     # ------------------------------------------------------------------
     # Governance: tickets created since GOVERNANCE_START only
@@ -235,19 +218,27 @@ def run():
     n_wfo_24     = len(wfo_24_issues)
     n_wfo_72     = len(wfo_72_issues)
 
+    # High Risk: unique tickets across Key Risk categories
+    # (Highest priority OR WFO 72h OR SLA breached) — now safe, all three are defined
+    high_risk_keys = (
+        {i["key"] for i in highest_issues}
+        | {i["key"] for i in wfo_72_issues}
+        | {i["key"] for i in sla_breach_issues}
+    )
+    n_high_risk = len(high_risk_keys)
+
     # ------------------------------------------------------------------
     # Jira filter URLs (used when ticket count > 5)
     # ------------------------------------------------------------------
-    jql_qa        = GOV_OPEN_FILTER_JQL + ' AND labels = "qa-incomplete"'
-    jql_labels    = GOV_OPEN_FILTER_JQL + ' AND labels = "missing-labels"'
-    jql_signoff   = GOV_OPEN_FILTER_JQL + ' AND labels = "signoff-mismatch"'
-    jql_wfo_24    = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
-    jql_wfo_72    = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
-    jql_sla_app   = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-approaching"'
-    jql_sla_breach    = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
-    jql_highest       = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
-    jql_escalation    = BASE_OPEN_FILTER_JQL + ' AND labels = "taxops_escalation"'
-    jql_high_risk     = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'  # fallback filter
+    jql_qa         = GOV_OPEN_FILTER_JQL + ' AND labels = "qa-incomplete"'
+    jql_labels     = GOV_OPEN_FILTER_JQL + ' AND labels = "missing-labels"'
+    jql_signoff    = GOV_OPEN_FILTER_JQL + ' AND labels = "signoff-mismatch"'
+    jql_wfo_24     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
+    jql_wfo_72     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
+    jql_sla_app    = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-approaching"'
+    jql_sla_breach = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
+    jql_highest    = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
+    jql_escalation = BASE_OPEN_FILTER_JQL + ' AND labels = "taxops_escalation"'
 
     # ------------------------------------------------------------------
     # Trend analysis
@@ -259,14 +250,12 @@ def run():
     tax_type_data = top_tax_types_with_issues(all_open)
     bigram_data   = top_bigrams_with_issues(flagged_issues)
 
-    # Tax types with per-type links
     tax_lines = []
     for tax_type, issues in tax_type_data:
         jql = BASE_OPEN_FILTER_JQL + f' AND summary ~ "{tax_type}"'
         tax_lines.append(f"  • *{tax_type}* ({len(issues)}): {fmt_links(issues, jql)}")
     tax_str = "\n".join(tax_lines) if tax_lines else "  • None identified"
 
-    # Recurring bigrams with per-phrase links
     bigram_lines = []
     for phrase, issues in bigram_data:
         jql = GOV_OPEN_FILTER_JQL + f' AND summary ~ "\\"{phrase}\\""'
@@ -297,7 +286,7 @@ def run():
     risks_str = "\n".join(f"• {r}" for r in risks)
 
     # ------------------------------------------------------------------
-    # Governance trend line (for headline narrative)
+    # Governance trend
     # ------------------------------------------------------------------
     total_gov = n_qa + n_labels_bad + n_signoff
     last_gov  = last.get("qa", 0) + last.get("labels", 0) + last.get("signoff", 0)
@@ -314,11 +303,8 @@ def run():
     # ------------------------------------------------------------------
     # Headline: 3-line structured format
     # ------------------------------------------------------------------
-
-    # Line 1 — bold title + week range
     line1 = f"*Weekly TaxOps Jira Governance Digest | Week of {week_label}*"
 
-    # Line 2 — metrics scorecard
     intake_str = f"{total_new_ops} Ops - Customer Task"
     if total_new_tasks > 0:
         intake_str += f" | {total_new_tasks} Task 🚩"
@@ -334,7 +320,6 @@ def run():
         f"• SLA Breaches: {n_sla_breach}",
     ])
 
-    # Line 3 — backlog health + governance quality assessment
     if total_new > total_resolved:
         backlog_assessment = (
             f"Backlog grew this week — {total_new} tickets in vs {total_resolved} resolved. "
@@ -369,7 +354,7 @@ def run():
     headline = f"{line1}\n\n{line2}\n\n{line3}\n\n👇 Full breakdown in thread"
 
     # ------------------------------------------------------------------
-    # Recommended Actions (dynamic — only include what's relevant)
+    # Recommended Actions (dynamic)
     # ------------------------------------------------------------------
     actions = []
     if n_qa > 0 or n_labels_bad > 0 or n_signoff > 0:
@@ -395,7 +380,7 @@ def run():
     actions_str = "\n".join(actions) if actions else "• No actions required this week."
 
     # ------------------------------------------------------------------
-    # Detail: full WBR breakdown (thread reply — mrkdwn + mentions render)
+    # Detail: full WBR breakdown (thread reply)
     # ------------------------------------------------------------------
     detail = (
         f"*Executive Summary*\n"

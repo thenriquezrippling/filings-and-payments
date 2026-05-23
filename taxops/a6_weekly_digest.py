@@ -306,6 +306,32 @@ def run():
     headline = "Weekly TaxOps Jira Governance Digest\n" + " ".join(headline_sentences)
 
     # ------------------------------------------------------------------
+    # Recommended Actions (dynamic — only include what's relevant)
+    # ------------------------------------------------------------------
+    actions = []
+    if n_qa > 0 or n_labels_bad > 0 or n_signoff > 0:
+        actions.append(
+            f"• Region Leads: remediate incomplete QA tickets and labeling gaps. cc: {CC_REGION_LEADS}"
+        )
+    if n_sla_breach > 0 or n_sla_app > 0:
+        actions.append(
+            f"• Engineering & TaxOps: review breached and near-breach SLAs, align on resolution. cc: {CC_ENG_TAXOPS}"
+        )
+    if n_wfo_24 > 0 or n_wfo_72 > 0:
+        actions.append(
+            f"• Managers: intervene on Waiting for Ops items beyond response timelines. cc: {CC_MANAGERS}"
+        )
+    if bigram_data:
+        actions.append(
+            f"• Product & Engineering: assess recurring patterns, prioritize systemic fixes. cc: {CC_PRODUCT_ENG}"
+        )
+    if len(risks) > 1 or bigram_data or n_sla_breach > 0:
+        actions.append(
+            f"• Leadership: evaluate whether trends warrant process, tooling, or ownership changes. cc: {CC_LEADERSHIP}"
+        )
+    actions_str = "\n".join(actions) if actions else "• No actions required this week."
+
+    # ------------------------------------------------------------------
     # Detail: full WBR breakdown (thread reply — mrkdwn + mentions render)
     # ------------------------------------------------------------------
     detail = (
@@ -342,11 +368,7 @@ def run():
         f"{risks_str}\n\n"
 
         f"*Recommended Actions*\n"
-        f"• Region Leads: remediate incomplete QA tickets and labeling gaps. cc: {CC_REGION_LEADS}\n"
-        f"• Engineering & TaxOps: review breached and near-breach SLAs, align on resolution. cc: {CC_ENG_TAXOPS}\n"
-        f"• Managers: intervene on Waiting for Ops items beyond response timelines. cc: {CC_MANAGERS}\n"
-        f"• Product & Engineering: assess recurring patterns, prioritize systemic fixes. cc: {CC_PRODUCT_ENG}\n"
-        f"• Leadership: evaluate whether trends warrant process, tooling, or ownership changes. cc: {CC_LEADERSHIP}"
+        f"{actions_str}"
     )
 
     _req.post(

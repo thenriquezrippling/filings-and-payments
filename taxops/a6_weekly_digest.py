@@ -93,7 +93,7 @@ def wow(current, prev):
 # ---------------------------------------------------------------------------
 
 def jira_filter_url(jql):
-    return "https://rippling.atlassian.net/issues/?jql=" + urllib.parse.quote(jql)
+    return "https://rippling.atlassian.net/issues/?jql=" + urllib.parse.quote(jql + " ORDER BY created ASC")
 
 
 def fmt_links(issues, jql_for_filter, limit=5):

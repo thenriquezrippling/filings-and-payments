@@ -61,7 +61,7 @@ def _validate_quadrants(labels):
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND status != Done AND created >= "{GOVERNANCE_START}" AND updated >= "-30m"',
+        f'{BASE_JQL} AND statusCategory != Done AND created >= "{GOVERNANCE_START}" AND updated >= "-30m"',
         fields=COMMON_FIELDS,
     )
     print(f"[A3] {len(issues)} recently updated tickets to check")

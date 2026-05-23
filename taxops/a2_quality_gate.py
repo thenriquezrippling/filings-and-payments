@@ -71,7 +71,7 @@ def _validate(issue):
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND status != Done AND created >= "{GOVERNANCE_START}" AND updated >= "-30m"',
+        f'{BASE_JQL} AND statusCategory != Done AND created >= "{GOVERNANCE_START}" AND updated >= "-30m"',
         fields=COMMON_FIELDS + ["description"],
     )
     print(f"[A2] {len(issues)} recently updated tickets to validate")

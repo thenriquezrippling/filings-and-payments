@@ -38,8 +38,10 @@ CH_LEAD  = "ops"
 CH_EXEC  = "exec"
 CH_ERROR = "ops"
 
-MEN_LEADERS = ""
-MEN_LEADS2  = ""
+MEN_LEADERS = "<!subteam^S06URQSJGEN>"
+MEN_LEADS2  = "<!subteam^S0ANS8X2B7Y>"
+
+GOVERNANCE_START = "2026-05-18"
 
 REGION_LEADS = {
     "west-region":      ("U03BFEP9614", "U0789C02H6F"),
@@ -54,7 +56,6 @@ REGION_LEADS = {
 ET = pytz.timezone("America/New_York")
 
 BASE_JQL = 'project = PF AND issuetype = "Ops - Customer Task"'
-GOVERNANCE_START = "2026-05-18"
 
 COMMON_FIELDS = [
     "summary", "status", "labels", "assignee", "reporter",
@@ -100,19 +101,19 @@ def _jira_auth():
 
 
 def jira_search(jql, fields=None, max_results=100):
-    url    = JIRA_BASE_URL + "/rest/api/3/search/jql"
-    params = {"jql": jql, "maxResults": max_results}
+    url  = JIRA_BASE_URL + "/rest/api/3/search/jql"
+    body = {"jql": jql, "maxResults": max_results}
     if fields:
-        params["fields"] = ",".join(fields)
-    r = requests.get(url, headers=_jira_auth(), params=params, timeout=30)
+        body["fields"] = fields
+    r = requests.post(url, headers=_jira_auth(), json=body, timeout=30)
     r.raise_for_status()
     data   = r.json()
     issues = data.get("issues", [])
     total  = data.get("total", 0)
     start  = len(issues)
     while start < total and len(issues) < 500:
-        params["startAt"] = start
-        r = requests.get(url, headers=_jira_auth(), params=params, timeout=30)
+        body["startAt"] = start
+        r = requests.post(url, headers=_jira_auth(), json=body, timeout=30)
         r.raise_for_status()
         batch = r.json().get("issues", [])
         if not batch:
@@ -187,6 +188,8 @@ def _adf_to_text(node):
     if isinstance(node, dict):
         if node.get("type") == "text":
             return node.get("text", "")
+        if node.get("type") == "mention":
+            return node.get("attrs", {}).get("text", "")
         return " ".join(_adf_to_text(c) for c in node.get("content", []))
     if isinstance(node, list):
         return " ".join(_adf_to_text(c) for c in node)

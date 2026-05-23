@@ -1,23 +1,27 @@
 """
 A6 — Weekly Executive QA Digest
-Runs every Monday at 17:00 UTC (12:00 PM ET).
+Runs every Monday at 12:00 PM ET (16:00 UTC).
 
 Posts to CH_EXEC (#taxops-leadership):
-  Message 1 (top-level): one-line headline with key counts
-  Message 2 (thread reply): full breakdown — all sections
+  headline: one-line summary
+  detail: full breakdown per WBR spec (in thread)
 
-No LLM. All analysis is deterministic Python:
-  - Status counts via JQL label queries
-  - Word frequency in summaries (top 10 non-stopwords)
-  - Label distribution
-  - Flag lists
+WoW comparison stored in taxops/wbr_history.json.
+Governance metrics only cover tickets created >= GOVERNANCE_START.
+SLA and volume metrics cover ALL open tickets.
 """
-import sys, os
+import sys, os, json, re
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
 from datetime import datetime
 from collections import Counter
-import re
+import requests as _req
+
+HISTORY_FILE = os.path.join(os.path.dirname(__file__), "wbr_history.json")
+
+TAX_TYPES = ["SUI","FML","FUTA","SUTA","941","940","W-2","1099",
+             "SDI","SIT","FIT","FICA","local"]
+TAX_RE = re.compile(r'\b(' + '|'.join(re.escape(t) for t in TAX_TYPES) + r')\b', re.IGNORECASE)
 
 STOPWORDS = {
     "the","a","an","and","or","for","in","on","at","to","of","is","are",
@@ -25,136 +29,243 @@ STOPWORDS = {
     "we","i","s","re","has","have","had","will","can","do","did","does",
     "its","but","so","if","into","than","no","he","she","they","them",
     "our","you","your","all","new","per","get","via","need","also",
+    "issue","ticket","please","update","pcih","inc","llc","corp",
+    "unable","upload","result","file","help","know","here","what",
+    "when","where","which","then","just","been","have","more","also",
+    "some","such","only","other","than","very","well","back",
 }
 
+NOISE = {"psd", "pjr", "pcih", "ffid", "noticequeue", "task"}
 
-def top_words(summaries, n=10):
+CC_REGION_LEADS = "<@U031NBG0E82> <@U026W3ACSU8>"
+CC_ENG_TAXOPS   = "<@U026W3CCKLG> <@U026LRKHS1F>"
+CC_MANAGERS     = "<!subteam^S06URQSJGEN>"
+CC_PRODUCT_ENG  = "<@U026LRKHS1F> <@U026W3CCKLG> <@U01F7MRSW5V>"
+CC_LEADERSHIP   = "<!subteam^S0ANS8X2B7Y>"
+
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE) as f:
+            return json.load(f)
+    return {}
+
+
+def save_history(data):
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def wow(current, prev):
+    if prev is None:
+        return str(current)
+    diff = current - prev
+    if diff > 0:
+        return f"{current} (up {diff} WoW)"
+    elif diff < 0:
+        return f"{current} (down {abs(diff)} WoW)"
+    return f"{current} (no change WoW)"
+
+
+def top_tax_types(summaries, n=5):
     counts = Counter()
     for s in summaries:
-        for w in re.findall(r"\b[a-z]{4,}\b", s.lower()):
-            if w not in STOPWORDS:
-                counts[w] += 1
+        for m in TAX_RE.findall(s):
+            counts[m.upper()] += 1
     return counts.most_common(n)
 
 
-def count_by_label(issues, label_set):
+def top_bigrams(summaries, n=5):
     counts = Counter()
+    for s in summaries:
+        words = [w for w in re.findall(r'\b[a-z]{4,}\b', s.lower())
+                 if w not in STOPWORDS and w not in NOISE]
+        for i in range(len(words) - 1):
+            counts[f"{words[i]} {words[i+1]}"] += 1
+    return [(p, c) for p, c in counts.most_common(n * 2) if c >= 2][:n]
+
+
+def detect_bulk_issues(issues, min_count=3):
+    phrase_counts = Counter()
     for issue in issues:
-        for lbl in get_labels(issue):
-            if lbl in label_set:
-                counts[lbl] += 1
-    return counts
+        summary = issue["fields"].get("summary", "").lower()
+        words = [w for w in re.findall(r'\b[a-z]{4,}\b', summary)
+                 if w not in STOPWORDS and w not in NOISE]
+        for i in range(len(words) - 1):
+            phrase_counts[f"{words[i]} {words[i+1]}"] += 1
+    return [(p, c) for p, c in phrase_counts.most_common(5) if c >= min_count]
+
+
+def fmt_examples(issues, limit=3):
+    return " ".join(f"<{issue_url(i['key'])}|{i['key']}>" for i in issues[:limit])
 
 
 def run():
+    history = load_history()
+    last = history.get("last_week", {})
     week_label = datetime.now(ET).strftime("%B %d, %Y")
 
-    # ─ All active tickets ────────────────────────────────────────────
-    all_issues = jira_search(
-        f'{BASE_JQL} AND labels = "us-taxops-ticket"',
-        fields=COMMON_FIELDS,
-        max_results=500,
+    # Volume: all open tickets
+    all_open = jira_search(
+        f'{BASE_JQL} AND status not in (Done, Closed, Resolved)',
+        fields=COMMON_FIELDS, max_results=500,
     )
-    open_issues = [i for i in all_issues
-                   if (i["fields"].get("status") or {}).get("name", "") != "Done"]
-    done_this_week = jira_search(
+    new_this_week = jira_search(
+        f'{BASE_JQL} AND created >= "-7d"',
+        fields=["summary"],
+    )
+    resolved_this_week = jira_search(
         f'{BASE_JQL} AND status = Done AND updated >= "-7d"',
-        fields=COMMON_FIELDS,
+        fields=["summary"],
     )
 
-    # ─ Label flag counts ────────────────────────────────────────────
-    FLAG_LABELS = [
-        "qa-incomplete", "missing-labels", "signoff-mismatch",
-        "sla-approaching", "sla-breached",
-        "waiting-for-ops-24h", "waiting-for-ops-72h",
-        "new-scope-detected",
-    ]
-    flag_counts = {}
-    for lbl in FLAG_LABELS:
-        issues_with = [i for i in open_issues if lbl in get_labels(i)]
-        flag_counts[lbl] = len(issues_with)
+    total_open     = len(all_open)
+    total_new      = len(new_this_week)
+    total_resolved = len(resolved_this_week)
 
-    # ─ Status distribution ──────────────────────────────────────────
-    status_counts = Counter()
-    for i in open_issues:
-        st = (i["fields"].get("status") or {}).get("name", "Unknown")
-        status_counts[st] += 1
+    # SLA: all open tickets
+    sla_breach_issues  = [i for i in all_open if "sla-breached" in get_labels(i)]
+    sla_approach_issues = [i for i in all_open if "sla-approaching" in get_labels(i)]
+    highest_issues     = [i for i in all_open
+                          if (i["fields"].get("priority") or {}).get("name", "") == "Highest"]
+    n_sla_breach = len(sla_breach_issues)
+    n_sla_app    = len(sla_approach_issues)
+    n_highest    = len(highest_issues)
 
-    # ─ Region distribution ─────────────────────────────────────────
-    REGION_LABELS_LIST = [
-        "west-region","south-region","northeast-region",
-        "midwest-region","IRS-region","federal-region","pr-region",
-    ]
-    region_counts = count_by_label(open_issues, set(REGION_LABELS_LIST))
+    # Governance: tickets since GOVERNANCE_START only
+    gov_issues = jira_search(
+        f'{BASE_JQL} AND status not in (Done, Closed, Resolved) AND created >= "{GOVERNANCE_START}"',
+        fields=COMMON_FIELDS, max_results=500,
+    )
 
-    # ─ Team distribution ───────────────────────────────────────────
-    TEAM_LABELS = [
-        "us-amendments","us-tax-filings",
-        "e2e-peo","rip-direct","us-nhr",
-    ]
-    team_counts = count_by_label(open_issues, set(TEAM_LABELS))
+    def gov_count(label):
+        return sum(1 for i in gov_issues if label in get_labels(i))
 
-    # ─ Word frequency ─────────────────────────────────────────────
-    summaries = [i["fields"].get("summary", "") for i in open_issues]
-    words     = top_words(summaries, n=10)
+    n_qa         = gov_count("qa-incomplete")
+    n_labels_bad = gov_count("missing-labels")
+    n_signoff    = gov_count("signoff-mismatch")
+    n_wfo_24     = gov_count("waiting-for-ops-24h")
+    n_wfo_72     = gov_count("waiting-for-ops-72h")
 
-    # ─ Tickets needing attention (for detail sections) ─────────────
-    def flagged(label, limit=5):
-        items = [i for i in open_issues if label in get_labels(i)][:limit]
-        return [f"  • <{issue_url(i['key'])}|{i['key']}> {i['fields'].get('summary','')[:60]}"
-                for i in items]
+    wfo_72_issues = [i for i in gov_issues if "waiting-for-ops-72h" in get_labels(i)]
 
-    qa_lines    = flagged("qa-incomplete")
-    lbl_lines   = flagged("missing-labels")
-    wfo_lines   = flagged("waiting-for-ops-24h")
-    sla_lines   = flagged("sla-approaching") + flagged("sla-breached")
-    scope_lines = flagged("new-scope-detected")
+    # Trends analysis
+    all_summaries     = [i["fields"].get("summary", "") for i in all_open]
+    flagged_summaries = [i["fields"].get("summary", "") for i in gov_issues
+                         if any(l in get_labels(i) for l in
+                                ["qa-incomplete", "missing-labels", "signoff-mismatch", "sla-breached"])]
+    tax_types   = top_tax_types(all_summaries)
+    root_bigrams = top_bigrams(flagged_summaries)
+    bulk_issues = detect_bulk_issues(all_open)
+    tax_str   = ", ".join(f"{t} ({c})" for t, c in tax_types)  or "None identified"
+    root_str  = ", ".join(f"{p} ({c})" for p, c in root_bigrams) or "None identified"
+    bulk_str  = "; ".join(f'"{p}" - {c} tickets' for p, c in bulk_issues) or "None identified"
 
-    # ─ Compute totals for headline ───────────────────────────────
-    total_open  = len(open_issues)
-    total_done  = len(done_this_week)
-    n_qa        = flag_counts["qa-incomplete"]
-    n_sla       = flag_counts["sla-approaching"] + flag_counts["sla-breached"]
-    n_wfo       = flag_counts["waiting-for-ops-24h"] + flag_counts["waiting-for-ops-72h"]
+    # Key Risks with examples
+    risks = []
+    if n_highest > 0:
+        risks.append(
+            f"{n_highest} Highest priority ticket(s) remain unresolved. "
+            f"Examples: {fmt_examples(highest_issues)}"
+        )
+    if n_wfo_72 > 0:
+        risks.append(
+            f"{n_wfo_72} Waiting for Ops ticket(s) aged beyond 72 hours. "
+            f"Examples: {fmt_examples(wfo_72_issues)}"
+        )
+    if n_sla_breach > 0:
+        risks.append(
+            f"{n_sla_breach} ticket(s) have breached SLA thresholds. "
+            f"Examples: {fmt_examples(sla_breach_issues)}"
+        )
+    if not risks:
+        risks.append("No critical risks identified this week.")
+    risks_str = "\n".join(f"- {r}" for r in risks)
 
-    # ─ Post Message 1: short headline ────────────────────────────
+    # Executive Summary
+    total_gov = n_qa + n_labels_bad + n_signoff
+    last_gov  = last.get("qa", 0) + last.get("labels", 0) + last.get("signoff", 0)
+    if not last:
+        trend_line = "first tracked week - baseline established."
+    elif total_gov < last_gov:
+        trend_line = f"improved from {last_gov} flag(s) last week."
+    elif total_gov > last_gov:
+        trend_line = f"increased from {last_gov} flag(s) last week."
+    else:
+        trend_line = "unchanged from last week."
+
+    exec_summary = (
+        f"Overall Jira governance shows {total_gov} open flag(s) across new tickets "
+        f"({trend_line}) "
+        f"{n_sla_breach} ticket(s) have breached SLA and {n_sla_app} are approaching threshold. "
+        f"{n_wfo_24} ticket(s) are Waiting for Ops beyond 24 hours."
+    )
+
+    # Headline (top-level post)
     headline = (
-        f"📊 *TaxOps Weekly QA Digest — Week of {week_label}*\n"
-        f"{total_open} open tickets | {total_done} closed this week | "
-        f"{n_qa} QA flags | {n_sla} SLA flags | {n_wfo} WFO aging\n"
-        f"_Full breakdown in thread ↓_"
+        f"Weekly TaxOps Jira Governance Digest - Week of {week_label}\n"
+        f"{wow(total_open, last.get('open'))} open | "
+        f"{total_new} new | "
+        f"{wow(n_sla_breach, last.get('sla_breach'))} SLA breached | "
+        f"{n_wfo_24 + n_wfo_72} Waiting for Ops"
     )
-    # ─ Post Message 2: full detail in thread ─────────────────────
-    def fmt_section(title, lines, empty_msg="None this week ✅"):
-        body = "\n".join(lines) if lines else f"  {empty_msg}"
-        return f"*{title}*\n{body}"
 
-    status_str = " | ".join(
-        f"{k}: {v}" for k, v in status_counts.most_common()
-    ) or "No open tickets"
-    region_str = " | ".join(
-        f"{k.replace('-region','').title()}: {v}" for k, v in region_counts.most_common()
-    ) or "No region data"
-    team_str = " | ".join(
-        f"{k}: {v}" for k, v in team_counts.most_common()
-    ) or "No team data"
-    words_str = ", ".join(f"{w} ({c})" for w, c in words) or "(no data)"
+    # Detail (thread reply)
+    detail = (
+        f"*Executive Summary*\n{exec_summary}\n\n"
+        f"*Quality Gate Issues* _(new tickets since {GOVERNANCE_START})_\n"
+        f"- Total incomplete tickets: {n_qa}\n\n"
+        f"*Labeling / Routing Issues* _(new tickets since {GOVERNANCE_START})_\n"
+        f"- Missing or invalid label quadrants: {n_labels_bad}\n"
+        f"- Sign-off mismatches: {n_signoff}\n\n"
+        f"*Waiting for Ops Aging*\n"
+        f"- 24+ business hours with no response: {n_wfo_24}\n"
+        f"- 72+ hours with no response: {n_wfo_72}\n\n"
+        f"*Engineering SLA Watch*\n"
+        f"- Approaching SLA: {n_sla_app}\n"
+        f"- Breached SLA: {n_sla_breach}\n\n"
+        f"*Potential Trends and Bulk Issues*\n"
+        f"- Common root causes: {root_str}\n"
+        f"- Repeated tax types: {tax_str}\n"
+        f"- Bulk issues impacting multiple clients: {bulk_str}\n\n"
+        f"*Key Risks*\n{risks_str}\n\n"
+        f"*Recommended Actions*\n"
+        f"- Region Leads to remediate incomplete Quality Gate tickets and labeling gaps "
+        f"to improve Engineering readiness. cc: {CC_REGION_LEADS}\n"
+        f"- Engineering and TaxOps to review breached and near-breach SLAs and align on "
+        f"resolution plans for highest-risk items. cc: {CC_ENG_TAXOPS}\n"
+        f"- TaxOps managers to intervene on Waiting for Ops items aged beyond established "
+        f"response timelines. cc: {CC_MANAGERS}\n"
+        f"- Product and Engineering to assess recurring themes and prioritize systemic fixes "
+        f"for bulk issues affecting multiple customers. cc: {CC_PRODUCT_ENG}\n"
+        f"- Leadership to evaluate whether emerging trends warrant process, tooling, or "
+        f"ownership changes. cc: {CC_LEADERSHIP}"
+    )
 
-    detail = "\n\n".join([
-        fmt_section("🔍 Quality Gate Issues",   qa_lines),
-        fmt_section("🏷️ Label/Routing Issues", lbl_lines),
-        fmt_section("⏳ Waiting-for-Ops Aging", wfo_lines),
-        fmt_section("🔥 SLA Watch",             sla_lines),
-        fmt_section("🔭 New Scope Detected", scope_lines),
-        f"*📈 Status Distribution*\n  {status_str}",
-        f"*🌎 Region Breakdown*\n  {region_str}",
-        f"*👥 Team Breakdown*\n  {team_str}",
-        f"*💬 Top Keywords in Summaries*\n  {words_str}",
-    ])
+    _req.post(
+        SLACK_WEBHOOK_EXEC,
+        json={"headline": headline, "detail": detail},
+        headers={"Content-Type": "application/json"},
+        timeout=30,
+    ).raise_for_status()
+    print("[A6] Posted weekly digest")
 
-    import requests as _req
-    _req.post(SLACK_WEBHOOK_EXEC, json={"headline": headline, "detail": detail}, headers={"Content-Type": "application/json"}, timeout=30).raise_for_status()
-    print("[A6] Posted digest with thread")
+    save_history({
+        "week_ending": datetime.now(ET).strftime("%Y-%m-%d"),
+        "last_week": {
+            "open":         total_open,
+            "new":          total_new,
+            "resolved":     total_resolved,
+            "sla_breach":   n_sla_breach,
+            "sla_approach": n_sla_app,
+            "qa":           n_qa,
+            "labels":       n_labels_bad,
+            "signoff":      n_signoff,
+            "wfo_24":       n_wfo_24,
+            "wfo_72":       n_wfo_72,
+        }
+    })
+    print("[A6] Saved WoW history")
 
 
 if __name__ == "__main__":

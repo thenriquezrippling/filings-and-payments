@@ -19,7 +19,7 @@ from common import *
 
 # Reporters whose WFO entry triggers a direct alert to Rana + Tony
 SPECIAL_REPORTER_NAMES = {"vijay kumar", "rashmita topakulu"}
-TONY_SLACK_UID = os.getenv("TONY_SLACK_UID", "")
+TONY_SLACK_UID = "U026LRKHS1F"
 
 
 def run():
@@ -85,13 +85,11 @@ def _process(issue, key, summary, url, labels, is_peo,
             CH_OPS,
         )
 
-        # Special alert: Vijay / Rashmita tickets need Rana + Tony looped in immediately
+        # Special alert: Vijay / Rashmita tickets loop in Rana + Tony immediately
         reporter_name = ((issue["fields"].get("reporter") or {}).get("displayName") or "").lower()
         if reporter_name in SPECIAL_REPORTER_NAMES:
-            rana_tag = f"<@{RANA_UID}>" if RANA_UID else "Rana"
-            tony_tag = f"<@{TONY_SLACK_UID}>" if TONY_SLACK_UID else "Tony"
             slack_post(
-                f":bell: *FYI* {rana_tag} {tony_tag} — <{url}|{key}> was submitted by "
+                f":bell: *FYI* <@{RANA_UID}> <@{TONY_SLACK_UID}> — <{url}|{key}> was submitted by "
                 f"{reporter_name.title()} and has entered Waiting for Ops.\n{summary}",
                 CH_OPS,
             )

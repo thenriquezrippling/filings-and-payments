@@ -8,6 +8,8 @@ on:
 jobs:
   weekly:
     runs-on: ubuntu-latest
+    permissions: 
+      contents: write
     env:
       JIRA_BASE_URL:      ${{ secrets.JIRA_BASE_URL }}
       JIRA_EMAIL:         ${{ secrets.JIRA_EMAIL }}

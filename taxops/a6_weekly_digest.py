@@ -169,13 +169,13 @@ def run():
     all_open = [i for i in all_issues
                 if (i["fields"].get("status") or {}).get("name", "") not in OPEN_STATUSES_EXCLUDE]
 
-    # New intake: Ops - Customer Task with TaxOps label only
+    # New intake and resolved: both scoped to us-taxops-ticket label
     new_ops_tasks = jira_search(
         f'{BASE_JQL} AND labels = "us-taxops-ticket" AND created >= "-7d"',
         fields=["summary", "issuetype"],
     )
     resolved_this_week = jira_search(
-        f'{BASE_JQL} AND status = Done AND updated >= "-7d"',
+        f'{BASE_JQL} AND labels = "us-taxops-ticket" AND status = Done AND updated >= "-7d"',
         fields=["summary"],
     )
 

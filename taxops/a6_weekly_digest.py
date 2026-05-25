@@ -7,8 +7,8 @@ Posts to CH_EXEC (#taxops-leadership) via Zapier webhook:
   detail:   full breakdown per WBR spec (thread reply)
 
 Every count includes hyperlinked ticket examples:
-  <=5 tickets  -> list individual <URL|KEY> links
-  >5 tickets   -> link to Jira filter URL
+  ≤5 tickets  → list individual <URL|KEY> links
+  >5 tickets  → link to Jira filter URL
 
 WoW comparison stored in taxops/wbr_history.json.
 Governance metrics only cover tickets created >= GOVERNANCE_START.
@@ -98,8 +98,8 @@ def jira_filter_url(jql):
 
 def fmt_links(issues, jql_for_filter, limit=5):
     """
-    <= limit tickets -> space-separated <URL|KEY> hyperlinks
-    >  limit tickets -> single link to Jira filter showing all of them
+    ≤ limit tickets → space-separated <URL|KEY> hyperlinks
+    >  limit tickets → single link to Jira filter showing all of them
     """
     if not issues:
         return "none"
@@ -110,7 +110,7 @@ def fmt_links(issues, jql_for_filter, limit=5):
 
 
 # ---------------------------------------------------------------------------
-# Trend analysis
+# Trend analysis — return issues per pattern so we can link them
 # ---------------------------------------------------------------------------
 
 def top_tax_types_with_issues(issues_list, n=5):
@@ -153,7 +153,7 @@ def run():
     history   = load_history()
     last      = history.get("last_week", {})
 
-    # Week label = last Mon-Sun (script runs Monday, reports on prior week)
+    # Week label = last Mon–Sun (script runs Monday, reports on prior week)
     today       = datetime.now(ET)
     last_monday = today - timedelta(days=today.weekday() + 7)
     last_sunday = last_monday + timedelta(days=6)
@@ -169,13 +169,9 @@ def run():
     all_open = [i for i in all_issues
                 if (i["fields"].get("status") or {}).get("name", "") not in OPEN_STATUSES_EXCLUDE]
 
-    # New intake split by issue type
+    # New intake: Ops - Customer Task with TaxOps label only
     new_ops_tasks = jira_search(
-        f'{BASE_JQL} AND created >= "-7d"',
-        fields=["summary", "issuetype"],
-    )
-    new_tasks = jira_search(
-        f'project = PF AND issuetype = Task AND created >= "-7d"',
+        f'{BASE_JQL} AND labels = "us-taxops-ticket" AND created >= "-7d"',
         fields=["summary", "issuetype"],
     )
     resolved_this_week = jira_search(
@@ -183,11 +179,10 @@ def run():
         fields=["summary"],
     )
 
-    total_open         = len(all_open)
-    total_new_ops      = len(new_ops_tasks)
-    total_new_tasks    = len(new_tasks)
-    total_new          = total_new_ops + total_new_tasks
-    total_resolved     = len(resolved_this_week)
+    total_open     = len(all_open)
+    total_new_ops  = len(new_ops_tasks)
+    total_new      = total_new_ops
+    total_resolved = len(resolved_this_week)
 
     # ------------------------------------------------------------------
     # SLA / Priority: all open tickets
@@ -210,7 +205,7 @@ def run():
         if (i["fields"].get("assignee") or {}).get("active") is False
     ]
     n_inactive_assignee = len(inactive_assignee_issues)
-    # Build a clickable filter URL using the actual inactive account IDs found
+    # Build a filter URL using the actual inactive account IDs found
     if inactive_assignee_issues:
         _inactive_ids = list({
             (i["fields"]["assignee"] or {}).get("accountId", "")
@@ -249,7 +244,7 @@ def run():
     n_wfo_72     = len(wfo_72_issues)
 
     # High Risk: unique tickets already surfaced in Key Risks
-    # (Highest priority OR WFO 72h OR SLA breached)
+    # (Highest priority OR WFO 72h OR SLA breached) — same logic as Key Risks section
     # NOTE: must come AFTER governance section defines wfo_72_issues
     high_risk_keys = (
         {i["key"] for i in highest_issues}
@@ -261,16 +256,16 @@ def run():
     # ------------------------------------------------------------------
     # Jira filter URLs (used when ticket count > 5)
     # ------------------------------------------------------------------
-    jql_qa         = GOV_OPEN_FILTER_JQL + ' AND labels = "qa-incomplete"'
-    jql_labels     = GOV_OPEN_FILTER_JQL + ' AND labels = "missing-labels"'
-    jql_signoff    = GOV_OPEN_FILTER_JQL + ' AND labels = "signoff-mismatch"'
-    jql_wfo_24     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
-    jql_wfo_72     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
-    jql_sla_app    = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-approaching"'
-    jql_sla_breach = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
-    jql_highest    = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
-    jql_escalation = BASE_OPEN_FILTER_JQL + ' AND labels = "taxops_escalation"'
-    jql_high_risk  = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'  # fallback filter
+    jql_qa        = GOV_OPEN_FILTER_JQL + ' AND labels = "qa-incomplete"'
+    jql_labels    = GOV_OPEN_FILTER_JQL + ' AND labels = "missing-labels"'
+    jql_signoff   = GOV_OPEN_FILTER_JQL + ' AND labels = "signoff-mismatch"'
+    jql_wfo_24    = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
+    jql_wfo_72    = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
+    jql_sla_app   = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-approaching"'
+    jql_sla_breach    = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
+    jql_highest       = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
+    jql_escalation    = BASE_OPEN_FILTER_JQL + ' AND labels = "taxops_escalation"'
+    jql_high_risk     = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'  # fallback filter
 
     # ------------------------------------------------------------------
     # Trend analysis
@@ -282,12 +277,14 @@ def run():
     tax_type_data = top_tax_types_with_issues(all_open)
     bigram_data   = top_bigrams_with_issues(flagged_issues)
 
+    # Tax types with per-type links
     tax_lines = []
     for tax_type, issues in tax_type_data:
         jql = BASE_OPEN_FILTER_JQL + f' AND summary ~ "{tax_type}"'
         tax_lines.append(f"  • *{tax_type}* ({len(issues)}): {fmt_links(issues, jql)}")
     tax_str = "\n".join(tax_lines) if tax_lines else "  • None identified"
 
+    # Recurring bigrams with per-phrase links
     bigram_lines = []
     for phrase, issues in bigram_data:
         jql = GOV_OPEN_FILTER_JQL + f' AND summary ~ "\\"{phrase}\\""'
@@ -323,7 +320,7 @@ def run():
     risks_str = "\n".join(f"• {r}" for r in risks)
 
     # ------------------------------------------------------------------
-    # Governance trend line
+    # Governance trend line (for headline narrative)
     # ------------------------------------------------------------------
     total_gov = n_qa + n_labels_bad + n_signoff
     last_gov  = last.get("qa", 0) + last.get("labels", 0) + last.get("signoff", 0)
@@ -340,15 +337,14 @@ def run():
     # ------------------------------------------------------------------
     # Headline: 3-line structured format
     # ------------------------------------------------------------------
+
+    # Line 1 — bold title + week range
     line1 = f"*Weekly TaxOps Jira Governance Digest | Week of {week_label}*"
 
-    intake_str = f"{total_new_ops} Ops - Customer Task"
-    if total_new_tasks > 0:
-        intake_str += f" | {total_new_tasks} Task \U0001f6a9"
-
+    # Line 2 — metrics scorecard
     line2 = "\n".join([
         f"• Total Backlog: {total_open} Ops - Customer Task",
-        f"• New Intake: {intake_str}",
+        f"• New Intake: {total_new_ops} Ops - Customer Task",
         f"• Resolved: {total_resolved}",
         f"• Waiting for Ops: {n_wfo_24 + n_wfo_72}",
         f"• Highest Priority: {n_highest}",
@@ -358,6 +354,7 @@ def run():
         f"• Inactive Assignees: {n_inactive_assignee}",
     ])
 
+    # Line 3 — backlog health + governance quality assessment
     if total_new > total_resolved:
         backlog_assessment = (
             f"Backlog grew this week — {total_new} tickets in vs {total_resolved} resolved. "
@@ -389,10 +386,10 @@ def run():
 
     line3 = f"{backlog_assessment} {gov_assessment}"
 
-    headline = f"{line1}\n\n{line2}\n\n{line3}\n\n\U0001f447 Full breakdown in thread"
+    headline = f"{line1}\n\n{line2}\n\n{line3}\n\n👇 Full breakdown in thread"
 
     # ------------------------------------------------------------------
-    # Recommended Actions (dynamic)
+    # Recommended Actions (dynamic — only include what's relevant)
     # ------------------------------------------------------------------
     actions = []
     if n_qa > 0 or n_labels_bad > 0 or n_signoff > 0:
@@ -422,7 +419,7 @@ def run():
     actions_str = "\n".join(actions) if actions else "• No actions required this week."
 
     # ------------------------------------------------------------------
-    # Detail: full WBR breakdown (thread reply)
+    # Detail: full WBR breakdown (thread reply — mrkdwn + mentions render)
     # ------------------------------------------------------------------
     detail = (
         f"*Executive Summary*\n"

@@ -63,6 +63,8 @@ def run():
         labels  = get_labels(issue)
         is_peo  = "e2e-peo" in labels
         reporter_name = (fields.get("reporter") or {}).get("displayName", "Reporter")
+        reporter_uid  = slack_uid_for_name(reporter_name)
+        reporter_tag  = f"<@{reporter_uid}>" if reporter_uid else reporter_name
 
         try:
             comments = get_comments(key)
@@ -92,11 +94,12 @@ def run():
 
                 author = (comment.get("author") or {}).get("displayName", "Unknown")
                 slack_post(
-                    f":mag: *New Scope Detected* {lead_tag} -- <{url}|{key}>\n"
+                    f":mag: *New Scope Detected* {lead_tag} {reporter_tag} — <{url}|{key}>\n"
                     f"{summary}\n"
                     f"Comment by {author}: \"{comment_text[:150]}\"\n"
-                    f"Reporter: {reporter_name} | If new scope, please create a separate ticket.",
+                    f"Please open a separate ticket if this is new scope.",
                     CH_OPS,
+                    ticket_key=key,
                 )
 
         except Exception as e:

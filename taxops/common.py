@@ -153,6 +153,7 @@ TAXOPS_SLACK_UIDS = {
     "vemula akash":                "U0AAQTMFH5G",
     "venu ummareddy":              "U0AF7QHFHHP",
     "vijay kumar":                 "U043JD1JSA1",
+    "zach russi":                  "U027RKP7VBN",
     "zieshan shaik":               "U086M80JM1R",
 }
 

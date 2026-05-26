@@ -69,16 +69,19 @@ def _webhook_url(channel):
     return SLACK_WEBHOOK_EXEC if channel == CH_EXEC else SLACK_WEBHOOK_OPS
 
 
-def slack_post(text, channel):
-    url = _webhook_url(channel)
-    r = requests.post(url, json={"message": text},
+def slack_post(text, channel, ticket_key=""):
+    url     = _webhook_url(channel)
+    payload = {"message": text}
+    if ticket_key:
+        payload["ticket_key"] = ticket_key
+    r = requests.post(url, json=payload,
                       headers={"Content-Type": "application/json"}, timeout=30)
     r.raise_for_status()
     return ""
 
 
-def slack_reply(text, thread_ts, channel):
-    return slack_post(text, channel)
+def slack_reply(text, thread_ts, channel, ticket_key=""):
+    return slack_post(text, channel, ticket_key=ticket_key)
 
 
 def post_error(msg):

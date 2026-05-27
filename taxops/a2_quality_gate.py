@@ -109,6 +109,7 @@ def run():
                         f"{summary}\n"
                         f"Missing: {', '.join(failures)}",
                         channel,
+                        ticket_key=key,
                     )
             else:
                 # Ticket now passes — remove qa-incomplete label if present

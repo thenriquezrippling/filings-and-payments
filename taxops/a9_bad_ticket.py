@@ -36,17 +36,18 @@ def run():
                 continue
 
             add_comment(key,
-                f"AUTO_FLAG:BAD_TICKET -- Bad Ticket notification sent.\n"
+                f"AUTO_FLAG:BAD_TICKET — Bad Ticket notification sent.\n"
                 f"This ticket has been flagged with the `bad-ticket` label "
                 f"and a notification has been posted to #taxops_case_help."
             )
 
             slack_post(
-                f":x: *Bad Ticket Flagged* {MEN_LEADERS} -- <{url}|{key}>\n"
+                f":x: *Bad Ticket Flagged* {MEN_LEADERS} — <{url}|{key}>\n"
                 f"{summary}\n"
                 f"Status: {status} | Reporter: {reporter_name}\n"
                 f"Please review and correct or close this ticket.",
                 CH_OPS,
+                ticket_key=key,
             )
             notified += 1
 

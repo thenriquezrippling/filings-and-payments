@@ -64,6 +64,7 @@ def run():
                     f":white_check_mark: *WFO Resolved* — <{url}|{key}>\n"
                     f"{summary}\nTicket has been marked Done.",
                     CH_OPS,
+                    ticket_key=key,
                 )
                 remove_labels_matching(issue, key, "waiting-for-ops")
         except Exception as e:
@@ -83,6 +84,7 @@ def _process(issue, key, summary, url, labels, is_peo,
             f":hourglass_flowing_sand: *Waiting for Ops* — <{url}|{key}>\n"
             f"{summary}\nAssignee: {assignee_name} | Ops team: please respond.",
             CH_OPS,
+            ticket_key=key,
         )
 
         # Special alert: Vijay / Rashmita tickets loop in Rana + Tony immediately
@@ -92,6 +94,7 @@ def _process(issue, key, summary, url, labels, is_peo,
                 f":bell: *FYI* <@{RANA_UID}> <@{TONY_SLACK_UID}> — <{url}|{key}> was submitted by "
                 f"{reporter_name.title()} and has entered Waiting for Ops.\n{summary}",
                 CH_OPS,
+                ticket_key=key,
             )
         return
 
@@ -103,6 +106,7 @@ def _process(issue, key, summary, url, labels, is_peo,
             f":alarm_clock: *WFO 24h Escalation* {MEN_LEADERS} — <{url}|{key}>\n"
             f"{summary}\nNo response after 24 business hours. Assignee: {assignee_name}.",
             CH_OPS,
+            ticket_key=key,
         )
         return
 
@@ -115,6 +119,7 @@ def _process(issue, key, summary, url, labels, is_peo,
             f"{summary}\n72 hours with no response. Assignee: {assignee_name}. "
             f"Immediate attention required.",
             CH_OPS,
+            ticket_key=key,
         )
 
 

@@ -97,6 +97,7 @@ def _process_list(items, flag, add_lbl, remove_lbl, emoji, title):
                 f"{summary}\n"
                 f"Priority: {priority} | {elapsed:.1f}/{threshold} biz days elapsed.",
                 CH_LEAD,
+                ticket_key=key,
             )
         except Exception as e:
             post_error(f"A5 error processing {key}: {e}")

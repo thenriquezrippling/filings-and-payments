@@ -105,6 +105,7 @@ def run():
                         f"{summary}\n"
                         f"{'; '.join(quad_issues)}",
                         CH_LEAD,
+                        ticket_key=key,
                     )
             else:
                 # All quadrants valid — remove missing-labels if present

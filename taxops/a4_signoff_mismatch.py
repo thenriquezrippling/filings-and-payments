@@ -114,6 +114,7 @@ def run():
                         f":pencil2: *Sign-Off Mismatch* {lead_tag}— <{url}|{key}>\n"
                         f"{summary}\n{reason}",
                         CH_LEAD,
+                        ticket_key=key,
                     )
             else:
                 if "signoff-mismatch" in labels:

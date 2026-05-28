@@ -17,6 +17,7 @@ Label: new-scope-detected
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
+from common import _safe_parse_dt   # private helper not exported by import *
 from datetime import datetime, timedelta
 import pytz
 

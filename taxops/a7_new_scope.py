@@ -1,15 +1,9 @@
 """
 A7 - New Scope Detector
-Polling every 15 min.
+Polling every 15 min (Mon–Fri).
 
 Scans comments added in the last 30 minutes for language indicating
 new scope has been added to an existing ticket.
-
-Detection signals (regex):
-  - References to a different company/entity/client
-  - New PCIH/FFID/EIN not in original description
-  - Phrases: "also need to", "separate issue", "another company",
-    "different client", "additionally", "also fix", "unrelated"
 
 Dedup: AUTO_FLAG:NEW_SCOPE:<comment_id> per comment.
 Label: new-scope-detected
@@ -63,9 +57,8 @@ def run():
         url     = issue_url(key)
         labels  = get_labels(issue)
         is_peo  = "e2e-peo" in labels
-        reporter_name = (fields.get("reporter") or {}).get("displayName", "Reporter")
-        reporter_uid  = slack_uid_for_name(reporter_name)
-        reporter_tag  = f"<@{reporter_uid}>" if reporter_uid else reporter_name
+        rep_tag  = reporter_tag_for(issue)
+        lead_tag = lead_tag_for(labels, is_peo)
 
         try:
             comments = get_comments(key)
@@ -83,8 +76,7 @@ def run():
                 if has_auto_flag(key, flag):
                     continue
 
-                lead_uid = region_lead_uid(labels, is_peo)
-                lead_tag = f"<@{lead_uid}>" if lead_uid else ""
+                author = (comment.get("author") or {}).get("displayName", "Unknown")
 
                 add_comment(key,
                     f"{flag} -- Potential new scope detected in comment {comment_id}.\n\n"
@@ -93,9 +85,8 @@ def run():
                 )
                 add_label(issue, key, "new-scope-detected")
 
-                author = (comment.get("author") or {}).get("displayName", "Unknown")
                 slack_post(
-                    f":mag: *New Scope Detected* {lead_tag} {reporter_tag} — <{url}|{key}>\n"
+                    f":mag: *New Scope Detected* {rep_tag} {lead_tag} — <{url}|{key}>\n"
                     f"{summary}\n"
                     f"Comment by {author}: \"{comment_text[:150]}\"\n"
                     f"Please open a separate ticket if this is new scope.",

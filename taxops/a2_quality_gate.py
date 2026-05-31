@@ -1,6 +1,6 @@
 """
 A2 — Quality Gate Checker
-Polling every 15 min. Validates required fields in recently created/updated tickets.
+Polling every 15 min (Mon–Fri). Validates required fields on recently updated tickets.
 
 Required fields checked:
   - Summary (non-empty)
@@ -8,7 +8,7 @@ Required fields checked:
   - Priority set
   - Assignee set
   - "Reviewed and signed off by:" line present
-  - Salesforce case reference (salesforce.com URL or "Case #" pattern)
+  - Salesforce case reference
   - At least one region label
 
 Dedup: AUTO_FLAG:QUALITY_GATE comment prevents re-alerting on the same ticket.
@@ -23,12 +23,12 @@ REGION_LABELS = {
     "midwest-region", "IRS-region", "federal-region", "pr-region",
 }
 
-# Key phrases that must appear in the description
-REQUIRED_PATTERNS = [
-    r"Company\s+ID",
-    r"(PCIH\s+ID|FFID|Entity\s+Name|EIN)",
-    r"(State|Tax\s+Type)",
-    r"(Issue|Current\s+Behavior|Expected\s+Behavior)",
+# (regex_pattern, human_readable_label)
+REQUIRED_CHECKS = [
+    (r"Company\s+ID",                                   "Company ID"),
+    (r"(PCIH\s+ID|FFID|Entity\s+Name|EIN)",             "PCIH ID / FFID / Entity Name / EIN"),
+    (r"(State|Tax\s+Type)",                             "State / Tax Type"),
+    (r"(Issue|Current\s+Behavior|Expected\s+Behavior)", "Issue / Current Behavior / Expected Behavior"),
 ]
 
 
@@ -44,18 +44,18 @@ def _validate(issue):
         reasons.append("Missing summary")
 
     if not desc or len(desc.strip()) < 30:
-        reasons.append("Description empty or too short")
+        reasons.append("Description is empty or too short")
     else:
-        for pat in REQUIRED_PATTERNS:
+        for pat, label in REQUIRED_CHECKS:
             if not re.search(pat, desc, re.IGNORECASE):
-                reasons.append(f"Description missing: `{pat}`")
+                reasons.append(f"Missing required field: {label}")
 
         if not re.search(r"Reviewed and signed off by", desc, re.IGNORECASE):
-            reasons.append("Missing \"Reviewed and signed off by:\" line")
+            reasons.append('Missing "Reviewed and signed off by:" line')
 
         sf_pattern = r"(salesforce\.com|Case\s*#\s*\d+|SF-\d+)"
         if not re.search(sf_pattern, desc, re.IGNORECASE):
-            reasons.append("No Salesforce case link or reference found")
+            reasons.append("Missing Salesforce case link or Case # reference")
 
     if not fields.get("priority"):
         reasons.append("Priority not set")
@@ -64,7 +64,7 @@ def _validate(issue):
         reasons.append("Assignee not set")
 
     if not any(l in REGION_LABELS for l in labels):
-        reasons.append("No geographic region label (west/south/northeast/midwest/IRS/federal/pr)")
+        reasons.append("Missing geographic region label (west / south / northeast / midwest / IRS / federal / pr)")
 
     return reasons
 
@@ -87,32 +87,27 @@ def run():
             failures = _validate(issue)
 
             if failures:
-                # Only alert if we haven't already flagged this ticket
                 if not has_auto_flag(key, "AUTO_FLAG:QUALITY_GATE"):
                     failure_list = "\n".join(f"  • {f}" for f in failures)
-                    comment_text = (
+                    add_comment(key,
                         f"AUTO_FLAG:QUALITY_GATE — Quality Gate Check Failed.\n\n"
                         f"The following required fields are missing or incomplete:\n{failure_list}\n\n"
                         f"Please complete these fields to clear the `qa-incomplete` label."
                     )
-                    add_comment(key, comment_text)
                     add_label(issue, key, "qa-incomplete")
 
-                    # Find lead to notify
-                    is_peo    = "e2e-peo" in labels
-                    lead_uid  = region_lead_uid(labels, is_peo)
-                    channel   = CH_LEAD if lead_uid else CH_OPS
-                    lead_tag  = f"<@{lead_uid}> " if lead_uid else ""
+                    is_peo   = "e2e-peo" in labels
+                    rep_tag  = reporter_tag_for(issue)
+                    lead_tag = lead_tag_for(labels, is_peo)
 
                     slack_post(
-                        f":x: *Quality Gate Failed* {lead_tag}— <{url}|{key}>\n"
+                        f":x: *Quality Gate Failed* {rep_tag} {lead_tag} — <{url}|{key}>\n"
                         f"{summary}\n"
-                        f"Missing: {', '.join(failures)}",
-                        channel,
+                        f"*Missing:*\n" + "\n".join(f"• {f}" for f in failures),
+                        CH_LEAD,
                         ticket_key=key,
                     )
             else:
-                # Ticket now passes — remove qa-incomplete label if present
                 if "qa-incomplete" in labels:
                     remove_label(issue, key, "qa-incomplete")
                     print(f"[A2] {key} now passes QG — removed qa-incomplete")

@@ -30,6 +30,9 @@ SLACK_WEBHOOK_OPS  = _require("SLACK_WEBHOOK_OPS")
 SLACK_WEBHOOK_EXEC = _require("SLACK_WEBHOOK_EXEC")
 RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")  # Rana Annabi
 
+# Fallback when reporter/lead UID cannot be resolved — tags @us-taxops-leaders
+FALLBACK_MENTION = "<!subteam^S06URQSJGEN>"
+
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
 
@@ -209,6 +212,19 @@ def region_lead_uid(labels, is_peo=False):
         if lbl in labels:
             return peo if is_peo else std
     return ""
+
+
+def reporter_tag_for(issue):
+    """Return <@UID> for the ticket reporter, or @us-taxops-leaders fallback."""
+    name = (issue.get("fields", {}).get("reporter") or {}).get("displayName", "")
+    uid  = slack_uid_for_name(name)
+    return f"<@{uid}>" if uid else FALLBACK_MENTION
+
+
+def lead_tag_for(labels, is_peo=False):
+    """Return <@UID> for the region lead, or @us-taxops-leaders fallback."""
+    uid = region_lead_uid(labels, is_peo)
+    return f"<@{uid}>" if uid else FALLBACK_MENTION
 
 
 # -- TaxOps team Slack UID lookup (keyed by Jira displayName, lowercase) ------

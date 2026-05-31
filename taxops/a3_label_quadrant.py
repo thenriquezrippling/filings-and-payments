@@ -1,6 +1,6 @@
 """
 A3 — Label Quadrant Validator
-Polling every 15 min. Validates 4 label quadrants on recently updated tickets.
+Polling every 15 min (Mon–Fri). Validates 4 label quadrants on recently updated tickets.
 
 Quadrant rules:
   Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task
@@ -34,27 +34,23 @@ def _validate_quadrants(labels):
     label_set = set(labels)
     issues    = []
 
-    # Ownership (always auto-fixed by A8, but flag here too)
     if OWNERSHIP_LABEL not in label_set:
         issues.append(f"Missing ownership label: `{OWNERSHIP_LABEL}`")
 
-    # Workstream: exactly 1
     ws_present = label_set & WORKSTREAM_LABELS
     if len(ws_present) == 0:
-        issues.append("Missing workstream label (one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task)")
+        issues.append("Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task")
     elif len(ws_present) > 1:
-        issues.append(f"Multiple workstream labels found ({', '.join(sorted(ws_present))}) — exactly 1 required")
+        issues.append(f"Multiple workstream labels ({', '.join(sorted(ws_present))}) — exactly 1 required")
 
-    # Geographic: at least 1
     if not (label_set & REGION_LABELS):
-        issues.append("Missing geographic region label (west/south/northeast/midwest/IRS/federal/pr)")
+        issues.append("Missing geographic region label — add one of: west / south / northeast / midwest / IRS / federal / pr")
 
-    # Assigned Team: exactly 1
     team_present = label_set & TEAM_LABELS
     if len(team_present) == 0:
-        issues.append("Missing assigned-team label (one of: us-amendments, us-tax-filings, e2e-peo, rip-direct, us-nhr)")
+        issues.append("Missing assigned-team label — add one of: us-amendments, us-tax-filings, e2e-peo, rip-direct, us-nhr")
     elif len(team_present) > 1:
-        issues.append(f"Multiple team labels found ({', '.join(sorted(team_present))}) — exactly 1 required")
+        issues.append(f"Multiple team labels ({', '.join(sorted(team_present))}) — exactly 1 required")
 
     return issues
 
@@ -73,11 +69,10 @@ def run():
         url     = issue_url(key)
         labels  = get_labels(issue)
 
-        # Silently ensure us-taxops-ticket is present (A8 does this too)
         if OWNERSHIP_LABEL not in labels:
             try:
                 add_label(issue, key, OWNERSHIP_LABEL)
-                labels = labels + [OWNERSHIP_LABEL]   # update local copy
+                labels = labels + [OWNERSHIP_LABEL]
                 issue["fields"]["labels"] = labels
             except Exception as e:
                 post_error(f"A3 could not add ownership label to {key}: {e}")
@@ -87,28 +82,26 @@ def run():
 
             if quad_issues:
                 if not has_auto_flag(key, "AUTO_FLAG:LABEL_QUADRANT"):
-                    issue_list   = "\n".join(f"  • {i}" for i in quad_issues)
-                    comment_text = (
+                    issue_list = "\n".join(f"  • {i}" for i in quad_issues)
+                    add_comment(key,
                         f"AUTO_FLAG:LABEL_QUADRANT — Label Quadrant Validation Failed.\n\n"
                         f"{issue_list}\n\n"
                         f"Please correct the labels. See label guide for required values."
                     )
-                    add_comment(key, comment_text)
                     add_label(issue, key, "missing-labels")
 
                     is_peo   = "e2e-peo" in labels
-                    lead_uid = region_lead_uid(labels, is_peo)
-                    lead_tag = f"<@{lead_uid}> " if lead_uid else ""
+                    rep_tag  = reporter_tag_for(issue)
+                    lead_tag = lead_tag_for(labels, is_peo)
 
                     slack_post(
-                        f":label: *Label Quadrant Issue* {lead_tag}— <{url}|{key}>\n"
+                        f":label: *Label Quadrant Issue* {rep_tag} {lead_tag} — <{url}|{key}>\n"
                         f"{summary}\n"
-                        f"{'; '.join(quad_issues)}",
+                        f"*Missing:*\n" + "\n".join(f"• {i}" for i in quad_issues),
                         CH_LEAD,
                         ticket_key=key,
                     )
             else:
-                # All quadrants valid — remove missing-labels if present
                 if "missing-labels" in labels:
                     remove_label(issue, key, "missing-labels")
                     print(f"[A3] {key} labels now valid — removed missing-labels")

@@ -8,6 +8,10 @@ Quadrant rules:
   Ownership (required):    us-taxops-ticket
   Assigned Team (exactly 1): us-amendments | us-tax-filings | e2e-peo | rip-direct | us-nhr
 
+Auto-restoration: if governance labels were stripped by an external automation,
+A3 silently re-adds any that appear in the most recent changelog entry and belong
+to our known taxonomy — before deciding whether to flag the ticket.
+
 Dedup: AUTO_FLAG:LABEL_QUADRANT prevents re-alerting same ticket.
 Label: `missing-labels` added/removed.
 """
@@ -28,6 +32,9 @@ TEAM_LABELS = {
     "e2e-peo", "rip-direct", "us-nhr",
 }
 OWNERSHIP_LABEL = "us-taxops-ticket"
+
+# All labels we own and are allowed to auto-restore
+ALL_GOVERNANCE_LABELS = WORKSTREAM_LABELS | REGION_LABELS | TEAM_LABELS | {OWNERSHIP_LABEL}
 
 
 def _validate_quadrants(labels):
@@ -69,6 +76,7 @@ def run():
         url     = issue_url(key)
         labels  = get_labels(issue)
 
+        # Always ensure ownership label is present
         if OWNERSHIP_LABEL not in labels:
             try:
                 add_label(issue, key, OWNERSHIP_LABEL)
@@ -78,6 +86,13 @@ def run():
                 post_error(f"A3 could not add ownership label to {key}: {e}")
 
         try:
+            # Before flagging — attempt to silently restore any governance labels
+            # that were stripped by an external automation (e.g. another team's Jira rule)
+            restored = restore_governance_labels(issue, key, labels, ALL_GOVERNANCE_LABELS)
+            if restored:
+                labels = get_labels(issue)
+                print(f"[A3] {key} — auto-restored stripped labels: {', '.join(sorted(restored))}")
+
             quad_issues = _validate_quadrants(labels)
 
             if quad_issues:

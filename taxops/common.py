@@ -188,6 +188,42 @@ def remove_labels_matching(issue, issue_key, prefix):
         update_labels(issue_key, cleaned)
 
 
+def restore_governance_labels(issue, issue_key, current_labels, known_labels):
+    """
+    Check the most recent label changelog entry for stripped governance labels and restore them.
+    Only restores labels that exist in known_labels (our governance taxonomy).
+    Silent — no Jira comment, no Slack message.
+    Returns list of restored label names, or empty list if nothing changed.
+    """
+    current_set = set(current_labels)
+
+    try:
+        url = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key + "?expand=changelog"
+        r   = requests.get(url, headers=_jira_auth(), timeout=30)
+        r.raise_for_status()
+        histories = r.json().get("changelog", {}).get("histories", [])
+    except Exception:
+        return []
+
+    # Walk changelog from most recent to oldest, find first label change
+    for history in sorted(histories, key=lambda h: h.get("created", ""), reverse=True):
+        for item in history.get("items", []):
+            if item.get("field") == "labels":
+                from_str     = (item.get("fromString") or "").strip()
+                prev_labels  = set(from_str.split()) if from_str else set()
+                # Labels that were in the previous state but stripped — intersect with our taxonomy
+                removed_known = (prev_labels - current_set) & known_labels
+                if removed_known:
+                    new_labels = list(current_set | removed_known)
+                    update_labels(issue_key, new_labels)
+                    issue["fields"]["labels"] = new_labels
+                    return list(removed_known)
+                # Most recent label change didn't strip any governance labels — stop here
+                return []
+
+    return []
+
+
 def _adf_to_text(node):
     if isinstance(node, str):
         return node

@@ -6,7 +6,10 @@ No LLM. Pure Python + Jira REST API v3 + Slack Workflow Builder webhooks.
 import os
 import re
 import sys
+import smtplib
 import requests
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, time as dtime
 from base64 import b64encode
 
@@ -32,6 +35,11 @@ RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")  # Rana Annabi
 
 # Fallback when reporter/lead UID cannot be resolved — tags @us-taxops-leaders
 FALLBACK_MENTION = "<!subteam^S06URQSJGEN>"
+
+# Email alert config — requires ALERT_EMAIL_PASSWORD GitHub secret
+ALERT_EMAIL_FROM      = "thenriquez@rippling.com"
+ALERT_EMAIL_TO        = ["thenriquez@rippling.com", "rannabi@rippling.com"]
+ALERT_EMAIL_PASSWORD  = ********"ALERT_EMAIL_PASSWORD", "")
 
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
@@ -66,6 +74,38 @@ COMMON_FIELDS = [
 ]
 
 
+# -- Email alerts -------------------------------------------------------------
+
+def send_error_email(msg):
+    """Send an alert email to Tony + Rana when a script error occurs.
+    Silently skips if ALERT_EMAIL_PASSWORD is not set.
+    """
+    if not ALERT_EMAIL_PASSWORD:
+        return
+    try:
+        email = MIMEMultipart("alternative")
+        email["Subject"] = "🚨 TaxOps Automation Error"
+        email["From"]    = ALERT_EMAIL_FROM
+        email["To"]      = ", ".join(ALERT_EMAIL_TO)
+
+        body = (
+            f"A TaxOps automation script encountered an error:\n\n"
+            f"{msg}\n\n"
+            f"---\n"
+            f"Check GitHub Actions for full logs:\n"
+            f"https://github.com/thenriquezrippling/filings-and-payments/actions\n\n"
+            f"This is an automated alert from the TaxOps Governance Automation Suite."
+        )
+        email.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as s:
+            s.starttls()
+            s.login(ALERT_EMAIL_FROM, ALERT_EMAIL_PASSWORD)
+            s.sendmail(ALERT_EMAIL_FROM, ALERT_EMAIL_TO, email.as_string())
+    except Exception as e:
+        print(f"ERROR: failed to send alert email: {e}", file=sys.stderr)
+
+
 # -- Slack --------------------------------------------------------------------
 
 def _webhook_url(channel):
@@ -88,10 +128,12 @@ def slack_reply(text, thread_ts, channel, ticket_key=""):
 
 
 def post_error(msg):
+    """Post error to Slack ops channel AND send email alert to Tony + Rana."""
     try:
         slack_post(":rotating_light: *TaxOps Error*\n" + msg, CH_ERROR)
     except Exception:
         pass
+    send_error_email(msg)
     print("ERROR: " + msg, file=sys.stderr)
 
 
@@ -205,20 +247,17 @@ def restore_governance_labels(issue, issue_key, current_labels, known_labels):
     except Exception:
         return []
 
-    # Walk changelog from most recent to oldest, find first label change
     for history in sorted(histories, key=lambda h: h.get("created", ""), reverse=True):
         for item in history.get("items", []):
             if item.get("field") == "labels":
-                from_str     = (item.get("fromString") or "").strip()
-                prev_labels  = set(from_str.split()) if from_str else set()
-                # Labels that were in the previous state but stripped — intersect with our taxonomy
+                from_str      = (item.get("fromString") or "").strip()
+                prev_labels   = set(from_str.split()) if from_str else set()
                 removed_known = (prev_labels - current_set) & known_labels
                 if removed_known:
                     new_labels = list(current_set | removed_known)
                     update_labels(issue_key, new_labels)
                     issue["fields"]["labels"] = new_labels
                     return list(removed_known)
-                # Most recent label change didn't strip any governance labels — stop here
                 return []
 
     return []

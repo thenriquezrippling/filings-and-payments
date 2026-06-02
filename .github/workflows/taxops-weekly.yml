@@ -11,11 +11,12 @@ jobs:
     permissions: 
       contents: write
     env:
-      JIRA_BASE_URL:      ${{ secrets.JIRA_BASE_URL }}
-      JIRA_EMAIL:         ${{ secrets.JIRA_EMAIL }}
-      JIRA_API_TOKEN:     ${{ secrets.JIRA_API_TOKEN }}
-      SLACK_WEBHOOK_OPS:  ${{ secrets.SLACK_WEBHOOK_OPS }}
-      SLACK_WEBHOOK_EXEC: ${{ secrets.SLACK_WEBHOOK_EXEC }}
+      JIRA_BASE_URL:        ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL:           ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN:       ${{ secrets.JIRA_API_TOKEN }}
+      SLACK_WEBHOOK_OPS:    ${{ secrets.SLACK_WEBHOOK_OPS }}
+      SLACK_WEBHOOK_EXEC:   ${{ secrets.SLACK_WEBHOOK_EXEC }}
+      ALERT_EMAIL_PASSWORD: ${{ secrets.ALERT_EMAIL_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4

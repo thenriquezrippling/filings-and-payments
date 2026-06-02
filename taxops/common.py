@@ -31,15 +31,14 @@ JIRA_EMAIL         = _require("JIRA_EMAIL")
 JIRA_API_TOKEN     = _require("JIRA_API_TOKEN")
 SLACK_WEBHOOK_OPS  = _require("SLACK_WEBHOOK_OPS")
 SLACK_WEBHOOK_EXEC = _require("SLACK_WEBHOOK_EXEC")
-RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")  # Rana Annabi
+RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")
 
-# Fallback when reporter/lead UID cannot be resolved — tags @us-taxops-leaders
+# Fallback when reporter/lead UID cannot be resolved
 FALLBACK_MENTION = "<!subteam^S06URQSJGEN>"
 
-# Email alert config — requires ALERT_EMAIL_PASSWORD GitHub secret
-ALERT_EMAIL_FROM      = "thenriquez@rippling.com"
-ALERT_EMAIL_TO        = ["thenriquez@rippling.com", "rannabi@rippling.com"]
-ALERT_EMAIL_PASSWORD  = ********"ALERT_EMAIL_PASSWORD", "")
+# Email alert recipients
+ALERT_EMAIL_FROM = "thenriquez@rippling.com"
+ALERT_EMAIL_TO   = ["thenriquez@rippling.com", "rannabi@rippling.com"]
 
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
@@ -77,17 +76,18 @@ COMMON_FIELDS = [
 # -- Email alerts -------------------------------------------------------------
 
 def send_error_email(msg):
-    """Send an alert email to Tony + Rana when a script error occurs.
-    Silently skips if ALERT_EMAIL_PASSWORD is not set.
+    """Send alert email to Tony + Rana on any script error.
+    Password is read at call time so module import never fails.
+    Silently skips if ALERT_EMAIL_PASSWORD secret is not configured.
     """
-    if not ALERT_EMAIL_PASSWORD:
+    pwd = ********"ALERT_EMAIL_PASSWORD", "")
+    if not pwd:
         return
     try:
         email = MIMEMultipart("alternative")
-        email["Subject"] = "🚨 TaxOps Automation Error"
+        email["Subject"] = "[TaxOps] Automation Error Alert"
         email["From"]    = ALERT_EMAIL_FROM
         email["To"]      = ", ".join(ALERT_EMAIL_TO)
-
         body = (
             f"A TaxOps automation script encountered an error:\n\n"
             f"{msg}\n\n"
@@ -97,10 +97,9 @@ def send_error_email(msg):
             f"This is an automated alert from the TaxOps Governance Automation Suite."
         )
         email.attach(MIMEText(body, "plain"))
-
         with smtplib.SMTP("smtp.gmail.com", 587) as s:
             s.starttls()
-            s.login(ALERT_EMAIL_FROM, ALERT_EMAIL_PASSWORD)
+            s.login(ALERT_EMAIL_FROM, pwd)
             s.sendmail(ALERT_EMAIL_FROM, ALERT_EMAIL_TO, email.as_string())
     except Exception as e:
         print(f"ERROR: failed to send alert email: {e}", file=sys.stderr)
@@ -128,7 +127,7 @@ def slack_reply(text, thread_ts, channel, ticket_key=""):
 
 
 def post_error(msg):
-    """Post error to Slack ops channel AND send email alert to Tony + Rana."""
+    """Post error to Slack AND send email alert to Tony + Rana."""
     try:
         slack_post(":rotating_light: *TaxOps Error*\n" + msg, CH_ERROR)
     except Exception:
@@ -234,11 +233,9 @@ def restore_governance_labels(issue, issue_key, current_labels, known_labels):
     """
     Check the most recent label changelog entry for stripped governance labels and restore them.
     Only restores labels that exist in known_labels (our governance taxonomy).
-    Silent — no Jira comment, no Slack message.
-    Returns list of restored label names, or empty list if nothing changed.
+    Silent. Returns list of restored label names, or empty list.
     """
     current_set = set(current_labels)
-
     try:
         url = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key + "?expand=changelog"
         r   = requests.get(url, headers=_jira_auth(), timeout=30)
@@ -246,7 +243,6 @@ def restore_governance_labels(issue, issue_key, current_labels, known_labels):
         histories = r.json().get("changelog", {}).get("histories", [])
     except Exception:
         return []
-
     for history in sorted(histories, key=lambda h: h.get("created", ""), reverse=True):
         for item in history.get("items", []):
             if item.get("field") == "labels":
@@ -259,7 +255,6 @@ def restore_governance_labels(issue, issue_key, current_labels, known_labels):
                     issue["fields"]["labels"] = new_labels
                     return list(removed_known)
                 return []
-
     return []
 
 

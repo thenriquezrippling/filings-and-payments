@@ -6,11 +6,13 @@ Posts to CH_EXEC (#taxops-leadership) via Zapier webhook:
   headline: short narrative executive summary (top-level post)
   detail:   full breakdown per WBR spec (thread reply)
 
-Base filter: https://rippling.atlassian.net/issues/?filter=47964
-All open-ticket queries use "filter = 47964" as the JQL base.
-Governance queries scope further with created >= GOVERNANCE_START.
+Base filters:
+  Open tickets  → filter 47964  (https://rippling.atlassian.net/issues/?filter=47964)
+  Completed     → filter 48203  (https://rippling.atlassian.net/issues/?filter=48203)
+                  scoped by resolutiondate to the Mon–Sun of the reported week
 
 WoW comparison stored in taxops/wbr_history.json.
+Governance metrics only cover tickets created >= GOVERNANCE_START.
 """
 import sys, os, json, re, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -20,13 +22,12 @@ import requests as _req
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "wbr_history.json")
 
-# Saved Jira filter — defines the exact scope of TaxOps open tickets
-JIRA_FILTER_ID   = "47964"
-BASE_FILTER_JQL  = f"filter = {JIRA_FILTER_ID}"
-GOV_FILTER_JQL   = f"filter = {JIRA_FILTER_ID} AND created >= \"{GOVERNANCE_START}\""
+# Saved Jira filters
+OPEN_FILTER_ID      = "47964"   # open TaxOps tickets
+COMPLETED_FILTER_ID = "48203"   # completed/resolved TaxOps tickets
 
-# Filter URL for clickable Jira links in Slack
-FILTER_URL = f"https://rippling.atlassian.net/issues/?filter={JIRA_FILTER_ID}"
+BASE_FILTER_JQL = f"filter = {OPEN_FILTER_ID}"
+GOV_FILTER_JQL  = f"filter = {OPEN_FILTER_ID} AND created >= \"{GOVERNANCE_START}\""
 
 TAX_TYPES = ["SUI", "FML", "FUTA", "SUTA", "941", "940", "W-2", "1099",
              "SDI", "SIT", "FIT", "FICA", "local"]
@@ -119,28 +120,39 @@ def run():
     history = load_history()
     last    = history.get("last_week", {})
 
+    # Script runs Monday — report covers the previous Mon–Sun
     today       = datetime.now(ET)
     last_monday = today - timedelta(days=today.weekday() + 7)
     last_sunday = last_monday + timedelta(days=6)
     week_label  = f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d, %Y')}"
 
+    # Date strings for JQL (inclusive Mon–Sun of reported week)
+    week_start = last_monday.strftime("%Y-%m-%d")
+    week_end   = last_sunday.strftime("%Y-%m-%d")
+
     # ------------------------------------------------------------------
-    # All open tickets — driven by saved filter 47964
+    # Open tickets — filter 47964
     # ------------------------------------------------------------------
-    all_open = jira_search(BASE_FILTER_JQL, fields=COMMON_FIELDS, max_results=500)
+    all_open   = jira_search(BASE_FILTER_JQL, fields=COMMON_FIELDS, max_results=500)
     total_open = len(all_open)
 
-    # New intake this week (from filter scope, created in last 7 days)
+    # New intake: opened within the reported week
     new_this_week = jira_search(
-        f"{BASE_FILTER_JQL} AND created >= \"-7d\"",
+        f'filter = {OPEN_FILTER_ID} AND created >= "{week_start}" AND created <= "{week_end}"',
         fields=["summary"],
     )
-    # Resolved this week — scoped to same project/type but Done status
+    total_new = len(new_this_week)
+
+    # ------------------------------------------------------------------
+    # Completed tickets — filter 48203, by resolutiondate of reported week
+    # ------------------------------------------------------------------
     resolved_this_week = jira_search(
-        f'{BASE_JQL} AND labels = "us-taxops-ticket" AND status = Done AND updated >= "-7d"',
-        fields=["summary"],
+        f'filter = {COMPLETED_FILTER_ID} '
+        f'AND resolutiondate >= "{week_start}" '
+        f'AND resolutiondate <= "{week_end}"',
+        fields=["summary", "resolutiondate"],
+        max_results=500,
     )
-    total_new      = len(new_this_week)
     total_resolved = len(resolved_this_week)
 
     # ------------------------------------------------------------------
@@ -167,7 +179,7 @@ def run():
         jql_inactive = BASE_FILTER_JQL
 
     # ------------------------------------------------------------------
-    # Governance: filter scope + created since GOVERNANCE_START
+    # Governance: filter 47964 + created since GOVERNANCE_START
     # ------------------------------------------------------------------
     gov_issues = jira_search(GOV_FILTER_JQL, fields=COMMON_FIELDS, max_results=500)
 
@@ -199,7 +211,9 @@ def run():
     jql_sla_app    = BASE_FILTER_JQL + ' AND labels = "sla-approaching"'
     jql_sla_breach = BASE_FILTER_JQL + ' AND labels = "sla-breached"'
     jql_highest    = BASE_FILTER_JQL + ' AND priority = Highest'
-    jql_escalation = BASE_FILTER_JQL + ' AND labels = "taxops_escalation"'
+    jql_resolved   = (f'filter = {COMPLETED_FILTER_ID} '
+                      f'AND resolutiondate >= "{week_start}" '
+                      f'AND resolutiondate <= "{week_end}"')
 
     # ------------------------------------------------------------------
     # Trend analysis
@@ -292,7 +306,8 @@ def run():
 
     detail = (
         f"*Executive Summary*\n"
-        f"{wow(total_open, last.get('open'))} open tickets ({total_new} new | {total_resolved} resolved). "
+        f"{wow(total_open, last.get('open'))} open tickets "
+        f"({total_new} new this week | {total_resolved} resolved this week). "
         f"{wow(n_sla_breach, last.get('sla_breach'))} SLA breach{'es' if n_sla_breach != 1 else ''}, "
         f"{n_sla_app} approaching. {n_wfo_24 + n_wfo_72} Waiting for Ops. "
         f"Governance: {total_gov} flag{'s' if total_gov != 1 else ''} ({gov_trend}).\n\n"

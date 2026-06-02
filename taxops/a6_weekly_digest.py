@@ -6,22 +6,27 @@ Posts to CH_EXEC (#taxops-leadership) via Zapier webhook:
   headline: short narrative executive summary (top-level post)
   detail:   full breakdown per WBR spec (thread reply)
 
-Every count includes hyperlinked ticket examples:
-  ≤5 tickets  → list individual <URL|KEY> links
-  >5 tickets  → link to Jira filter URL
+Base filter: https://rippling.atlassian.net/issues/?filter=47964
+All open-ticket queries use "filter = 47964" as the JQL base.
+Governance queries scope further with created >= GOVERNANCE_START.
 
 WoW comparison stored in taxops/wbr_history.json.
-Governance metrics only cover tickets created >= GOVERNANCE_START.
-SLA and volume metrics cover ALL open tickets.
 """
 import sys, os, json, re, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
 from datetime import datetime
-from collections import Counter
 import requests as _req
 
 HISTORY_FILE = os.path.join(os.path.dirname(__file__), "wbr_history.json")
+
+# Saved Jira filter — defines the exact scope of TaxOps open tickets
+JIRA_FILTER_ID   = "47964"
+BASE_FILTER_JQL  = f"filter = {JIRA_FILTER_ID}"
+GOV_FILTER_JQL   = f"filter = {JIRA_FILTER_ID} AND created >= \"{GOVERNANCE_START}\""
+
+# Filter URL for clickable Jira links in Slack
+FILTER_URL = f"https://rippling.atlassian.net/issues/?filter={JIRA_FILTER_ID}"
 
 TAX_TYPES = ["SUI", "FML", "FUTA", "SUTA", "941", "940", "W-2", "1099",
              "SDI", "SIT", "FIT", "FICA", "local"]
@@ -38,19 +43,7 @@ STOPWORDS = {
     "when","where","which","then","just","been","have","more","also",
     "some","such","only","other","than","very","well","back",
 }
-
 NOISE = {"psd", "pjr", "pcih", "ffid", "noticequeue", "task"}
-
-# JQL fragments used for both API fetches and clickable Jira filter URLs
-BASE_OPEN_FILTER_JQL = (
-    'project = PF AND issuetype = "Ops - Customer Task" '
-    'AND labels = "us-taxops-ticket" '
-    'AND status not in (Done, Closed, Resolved)'
-)
-GOV_OPEN_FILTER_JQL = (
-    BASE_OPEN_FILTER_JQL
-    + f' AND created >= "{GOVERNANCE_START}"'
-)
 
 CC_REGION_LEADS = "<@U031NBG0E82> <@U026W3ACSU8>"
 CC_ENG_TAXOPS   = "<@U026W3CCKLG> <@U026LRKHS1F>"
@@ -75,10 +68,8 @@ def wow(current, prev):
     if prev is None:
         return str(current)
     diff = current - prev
-    if diff > 0:
-        return f"{current} (↑{diff} WoW)"
-    elif diff < 0:
-        return f"{current} (↓{abs(diff)} WoW)"
+    if diff > 0:   return f"{current} (↑{diff} WoW)"
+    elif diff < 0: return f"{current} (↓{abs(diff)} WoW)"
     return f"{current} (no change WoW)"
 
 
@@ -91,8 +82,7 @@ def fmt_links(issues, jql_for_filter, limit=5):
         return "none"
     if len(issues) <= limit:
         return " ".join(f"<{issue_url(i['key'])}|{i['key']}>" for i in issues)
-    url = jira_filter_url(jql_for_filter)
-    return f"<{url}|View all {len(issues)} tickets ↗>"
+    return f"<{jira_filter_url(jql_for_filter)}|View all {len(issues)} tickets ↗>"
 
 
 def top_tax_types_with_issues(issues_list, n=5):
@@ -135,35 +125,31 @@ def run():
     week_label  = f"{last_monday.strftime('%b %d')} – {last_sunday.strftime('%b %d, %Y')}"
 
     # ------------------------------------------------------------------
-    # Volume: open tickets only — status filter in JQL, not Python
-    # FIX: previously fetched all statuses and filtered in Python,
-    # which caused undercounts when total ticket pool exceeded 500.
+    # All open tickets — driven by saved filter 47964
     # ------------------------------------------------------------------
-    all_open = jira_search(
-        BASE_OPEN_FILTER_JQL,
-        fields=COMMON_FIELDS, max_results=500,
-    )
+    all_open = jira_search(BASE_FILTER_JQL, fields=COMMON_FIELDS, max_results=500)
+    total_open = len(all_open)
 
-    new_ops_tasks = jira_search(
-        f'{BASE_JQL} AND labels = "us-taxops-ticket" AND created >= "-7d"',
-        fields=["summary", "issuetype"],
+    # New intake this week (from filter scope, created in last 7 days)
+    new_this_week = jira_search(
+        f"{BASE_FILTER_JQL} AND created >= \"-7d\"",
+        fields=["summary"],
     )
+    # Resolved this week — scoped to same project/type but Done status
     resolved_this_week = jira_search(
         f'{BASE_JQL} AND labels = "us-taxops-ticket" AND status = Done AND updated >= "-7d"',
         fields=["summary"],
     )
-
-    total_open     = len(all_open)
-    total_new      = len(new_ops_tasks)
+    total_new      = len(new_this_week)
     total_resolved = len(resolved_this_week)
 
     # ------------------------------------------------------------------
     # SLA / Priority / Escalations
     # ------------------------------------------------------------------
-    sla_breach_issues        = [i for i in all_open if "sla-breached"       in get_labels(i)]
-    sla_approach_issues      = [i for i in all_open if "sla-approaching"    in get_labels(i)]
+    sla_breach_issues        = [i for i in all_open if "sla-breached"      in get_labels(i)]
+    sla_approach_issues      = [i for i in all_open if "sla-approaching"   in get_labels(i)]
     highest_issues           = [i for i in all_open if (i["fields"].get("priority") or {}).get("name", "") == "Highest"]
-    escalation_issues        = [i for i in all_open if "taxops_escalation"  in get_labels(i)]
+    escalation_issues        = [i for i in all_open if "taxops_escalation" in get_labels(i)]
     inactive_assignee_issues = [i for i in all_open if (i["fields"].get("assignee") or {}).get("active") is False]
 
     n_sla_breach        = len(sla_breach_issues)
@@ -173,28 +159,17 @@ def run():
     n_inactive_assignee = len(inactive_assignee_issues)
 
     if inactive_assignee_issues:
-        _inactive_ids = list({
-            (i["fields"]["assignee"] or {}).get("accountId", "")
-            for i in inactive_assignee_issues
-            if (i["fields"].get("assignee") or {}).get("accountId")
-        })
-        jql_inactive = (
-            BASE_OPEN_FILTER_JQL
-            + " AND assignee in ("
-            + ",".join(f'"{aid}"' for aid in _inactive_ids)
-            + ")"
-        )
+        _ids = list({(i["fields"]["assignee"] or {}).get("accountId", "")
+                     for i in inactive_assignee_issues
+                     if (i["fields"].get("assignee") or {}).get("accountId")})
+        jql_inactive = BASE_FILTER_JQL + " AND assignee in (" + ",".join(f'"{a}"' for a in _ids) + ")"
     else:
-        jql_inactive = BASE_OPEN_FILTER_JQL
+        jql_inactive = BASE_FILTER_JQL
 
     # ------------------------------------------------------------------
-    # Governance: open tickets created since GOVERNANCE_START
-    # FIX: same as above — status filter now in JQL directly
+    # Governance: filter scope + created since GOVERNANCE_START
     # ------------------------------------------------------------------
-    gov_issues = jira_search(
-        GOV_OPEN_FILTER_JQL,
-        fields=COMMON_FIELDS, max_results=500,
-    )
+    gov_issues = jira_search(GOV_FILTER_JQL, fields=COMMON_FIELDS, max_results=500)
 
     qa_issues        = [i for i in gov_issues if "qa-incomplete"       in get_labels(i)]
     bad_label_issues = [i for i in gov_issues if "missing-labels"      in get_labels(i)]
@@ -208,25 +183,23 @@ def run():
     n_wfo_24     = len(wfo_24_issues)
     n_wfo_72     = len(wfo_72_issues)
 
-    high_risk_keys = (
-        {i["key"] for i in highest_issues}
-        | {i["key"] for i in wfo_72_issues}
-        | {i["key"] for i in sla_breach_issues}
-    )
+    high_risk_keys = ({i["key"] for i in highest_issues}
+                     | {i["key"] for i in wfo_72_issues}
+                     | {i["key"] for i in sla_breach_issues})
     n_high_risk = len(high_risk_keys)
 
     # ------------------------------------------------------------------
     # Jira filter URLs
     # ------------------------------------------------------------------
-    jql_qa         = GOV_OPEN_FILTER_JQL + ' AND labels = "qa-incomplete"'
-    jql_labels     = GOV_OPEN_FILTER_JQL + ' AND labels = "missing-labels"'
-    jql_signoff    = GOV_OPEN_FILTER_JQL + ' AND labels = "signoff-mismatch"'
-    jql_wfo_24     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
-    jql_wfo_72     = GOV_OPEN_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
-    jql_sla_app    = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-approaching"'
-    jql_sla_breach = BASE_OPEN_FILTER_JQL + ' AND labels = "sla-breached"'
-    jql_highest    = BASE_OPEN_FILTER_JQL + ' AND priority = Highest'
-    jql_escalation = BASE_OPEN_FILTER_JQL + ' AND labels = "taxops_escalation"'
+    jql_qa         = GOV_FILTER_JQL + ' AND labels = "qa-incomplete"'
+    jql_labels     = GOV_FILTER_JQL + ' AND labels = "missing-labels"'
+    jql_signoff    = GOV_FILTER_JQL + ' AND labels = "signoff-mismatch"'
+    jql_wfo_24     = GOV_FILTER_JQL + ' AND labels = "waiting-for-ops-24h"'
+    jql_wfo_72     = GOV_FILTER_JQL + ' AND labels = "waiting-for-ops-72h"'
+    jql_sla_app    = BASE_FILTER_JQL + ' AND labels = "sla-approaching"'
+    jql_sla_breach = BASE_FILTER_JQL + ' AND labels = "sla-breached"'
+    jql_highest    = BASE_FILTER_JQL + ' AND priority = Highest'
+    jql_escalation = BASE_FILTER_JQL + ' AND labels = "taxops_escalation"'
 
     # ------------------------------------------------------------------
     # Trend analysis
@@ -240,14 +213,12 @@ def run():
 
     tax_lines = []
     for tax_type, issues in tax_type_data:
-        jql = BASE_OPEN_FILTER_JQL + f' AND summary ~ "{tax_type}"'
-        tax_lines.append(f"  • *{tax_type}* ({len(issues)}): {fmt_links(issues, jql)}")
+        tax_lines.append(f"  • *{tax_type}* ({len(issues)}): {fmt_links(issues, BASE_FILTER_JQL + f' AND summary ~ \"{tax_type}\"')}")
     tax_str = "\n".join(tax_lines) if tax_lines else "  • None identified"
 
     bigram_lines = []
     for phrase, issues in bigram_data:
-        jql = GOV_OPEN_FILTER_JQL + f' AND summary ~ "\\"{phrase}\\""'
-        bigram_lines.append(f'  • *"{phrase}"* ({len(issues)}): {fmt_links(issues, jql)}')
+        bigram_lines.append(f'  • *"{phrase}"* ({len(issues)}): {fmt_links(issues, GOV_FILTER_JQL + f" AND summary ~ \\\"{phrase}\\\"")}')
     bigram_str = "\n".join(bigram_lines) if bigram_lines else "  • None identified"
 
     # ------------------------------------------------------------------
@@ -297,10 +268,10 @@ def run():
     else:
         backlog_assessment = f"Intake and resolution balanced this week ({total_new} in, {total_resolved} out)."
 
-    if total_gov >= 5:        gov_assessment = f"{total_gov} governance flags detected — a Jira hygiene refresher is recommended."
-    elif total_gov >= 2:      gov_assessment = f"{total_gov} governance flags on new tickets."
-    elif total_gov == 1:      gov_assessment = "1 governance flag this week."
-    else:                     gov_assessment = "Ticket quality is strong — no governance flags this week."
+    if total_gov >= 5:       gov_assessment = f"{total_gov} governance flags detected — a Jira hygiene refresher is recommended."
+    elif total_gov >= 2:     gov_assessment = f"{total_gov} governance flags on new tickets."
+    elif total_gov == 1:     gov_assessment = "1 governance flag this week."
+    else:                    gov_assessment = "Ticket quality is strong — no governance flags this week."
 
     headline = f"{line1}\n\n{line2}\n\n{backlog_assessment} {gov_assessment}\n\n👇 Full breakdown in thread"
 

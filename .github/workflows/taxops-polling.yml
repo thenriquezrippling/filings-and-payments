@@ -16,6 +16,7 @@ jobs:
       SLACK_WEBHOOK_EXEC: ${{ secrets.SLACK_WEBHOOK_EXEC }}
       RANA_SLACK_UID:     ${{ secrets.RANA_SLACK_UID }}
       LEAD_NAMES_JSON:    ${{ secrets.LEAD_NAMES_JSON }}
+      ALERT_EMAIL_PASSWORD: ${{ secrets.ALERT_EMAIL_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4

@@ -87,7 +87,7 @@ def slack_reply(text, thread_ts, channel, ticket_key=""):
 
 
 def post_error(msg):
-    """Post error to Slack ops channel. GitHub Actions notifications handle email alerts."""
+    """Post error to Slack ops channel. Use GitHub Actions notifications for email alerts."""
     try:
         slack_post(":rotating_light: *TaxOps Error*\n" + msg, CH_ERROR)
     except Exception:
@@ -186,6 +186,46 @@ def remove_labels_matching(issue, issue_key, prefix):
     cleaned = [l for l in current if not l.startswith(prefix)]
     if len(cleaned) != len(current):
         update_labels(issue_key, cleaned)
+
+
+def transition_issue(issue_key, status_name):
+    """
+    Transition a Jira issue to the named status (case-insensitive match).
+    Returns True if successful, False if the transition was not available.
+    """
+    url = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key + "/transitions"
+    r   = requests.get(url, headers=_jira_auth(), timeout=30)
+    r.raise_for_status()
+    for t in r.json().get("transitions", []):
+        if t.get("to", {}).get("name", "").lower() == status_name.lower():
+            r2 = requests.post(url, headers=_jira_auth(),
+                               json={"transition": {"id": t["id"]}}, timeout=30)
+            r2.raise_for_status()
+            return True
+    print(f"[transition_issue] '{status_name}' not available for {issue_key}", file=sys.stderr)
+    return False
+
+
+def ops_has_responded(issue_key, reporter_account_id, since_minutes=30):
+    """
+    Returns True if a non-reporter, non-automation comment was added in the
+    last `since_minutes` minutes on a WFO ticket — indicating Ops responded.
+    """
+    comments = get_comments(issue_key)
+    cutoff   = datetime.now(pytz.utc) - timedelta(minutes=since_minutes)
+    for c in reversed(comments):
+        created = _safe_parse_dt(c.get("created", ""))
+        if not created or created < cutoff:
+            continue
+        # Skip our own AUTO_FLAG comments
+        if "AUTO_FLAG:" in _adf_to_text(c.get("body", {})):
+            continue
+        # Skip comments from the original reporter
+        commenter_id = (c.get("author") or {}).get("accountId", "")
+        if commenter_id and commenter_id == reporter_account_id:
+            continue
+        return True
+    return False
 
 
 def restore_governance_labels(issue, issue_key, current_labels, known_labels):

@@ -8,6 +8,10 @@ Escalation ladder:
   72h calendar → Hard escalation — tags @taxops-pillar-leads + reporter
   Done → Completion update in thread
 
+Ops response detection:
+  If a non-reporter, non-automation comment is added within 30 min,
+  the ticket is auto-transitioned to In Progress and all WFO labels are cleared.
+
 Special rule: tickets reported by Vijay Kumar or Rashmita Topakulu
 trigger an immediate FYI alert to Rana and Tony when they enter WFO.
 
@@ -45,6 +49,7 @@ def run():
         except Exception as e:
             post_error(f"A1 error on {key}: {e}")
 
+    # Clean up WFO labels from tickets that are Done
     done_issues = jira_search(
         f'{BASE_JQL} AND status = Done AND labels = "waiting-for-ops"',
         fields=COMMON_FIELDS,
@@ -72,13 +77,37 @@ def run():
 
 def _process(issue, key, summary, url, labels, is_peo,
              assignee_name, priority, entry_ts):
-    elapsed_biz_h = biz_hours_since(entry_ts)
-    elapsed_cal_h = calendar_hours_since(entry_ts)
-    rep_tag       = reporter_tag_for(issue)
-    lead_tag      = lead_tag_for(labels, is_peo)
+    elapsed_biz_h       = biz_hours_since(entry_ts)
+    elapsed_cal_h       = calendar_hours_since(entry_ts)
+    rep_tag             = reporter_tag_for(issue)
+    lead_tag            = lead_tag_for(labels, is_peo)
+    reporter_account_id = (issue["fields"].get("reporter") or {}).get("accountId", "")
+
+    # -- Ops response detection (highest priority check) ----------------------
+    # If a real human (non-reporter, non-automation) commented in the last 30 min,
+    # transition back to In Progress and clear all WFO labels.
+    if has_auto_flag(key, "AUTO_FLAG:WAITING_OPS_INITIAL") and \
+       not has_auto_flag(key, "AUTO_FLAG:OPS_RESPONDED"):
+        if ops_has_responded(key, reporter_account_id, since_minutes=30):
+            add_comment(key,
+                "AUTO_FLAG:OPS_RESPONDED — Ops team responded. "
+                "Transitioning ticket back to In Progress and clearing WFO queue labels."
+            )
+            transitioned = transition_issue(key, "In Progress")
+            remove_labels_matching(issue, key, "waiting-for-ops")
+            status_note = "Ticket transitioned to In Progress." if transitioned \
+                          else "Note: In Progress transition unavailable — please update status manually."
+            slack_post(
+                f":speech_balloon: *WFO Ops Response* {rep_tag} {lead_tag} — <{url}|{key}>\n"
+                f"{summary}\n"
+                f"Ops team has responded. WFO labels cleared. {status_note}",
+                CH_OPS,
+                ticket_key=key,
+            )
+            return
 
     # Pull first 300 chars of description for context
-    raw_desc = desc_text(issue).strip()
+    raw_desc     = desc_text(issue).strip()
     desc_snippet = (raw_desc[:300] + "…") if len(raw_desc) > 300 else raw_desc
     context_line = f"*Issue:* {desc_snippet}" if desc_snippet else ""
 
@@ -94,7 +123,7 @@ def _process(issue, key, summary, url, labels, is_peo,
         )
         if context_line:
             body += f"{context_line}\n"
-        body += f"*Action:* Please review this ticket and respond to the requester."
+        body += "*Action:* Please review this ticket and respond to the requester."
 
         slack_post(body, CH_OPS, ticket_key=key)
 

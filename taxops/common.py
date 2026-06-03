@@ -6,10 +6,7 @@ No LLM. Pure Python + Jira REST API v3 + Slack Workflow Builder webhooks.
 import os
 import re
 import sys
-import smtplib
 import requests
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta, time as dtime
 from base64 import b64encode
 
@@ -33,12 +30,7 @@ SLACK_WEBHOOK_OPS  = _require("SLACK_WEBHOOK_OPS")
 SLACK_WEBHOOK_EXEC = _require("SLACK_WEBHOOK_EXEC")
 RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")
 
-# Fallback when reporter/lead UID cannot be resolved
 FALLBACK_MENTION = "<!subteam^S06URQSJGEN>"
-
-# Email alert recipients
-ALERT_EMAIL_FROM = "thenriquez@rippling.com"
-ALERT_EMAIL_TO   = ["thenriquez@rippling.com", "rannabi@rippling.com"]
 
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
@@ -73,38 +65,6 @@ COMMON_FIELDS = [
 ]
 
 
-# -- Email alerts -------------------------------------------------------------
-
-def send_error_email(msg):
-    """Send alert email to Tony + Rana on any script error.
-    Password is read at call time so module import never fails.
-    Silently skips if ALERT_EMAIL_PASSWORD secret is not configured.
-    """
-    pwd = ********"ALERT_EMAIL_PASSWORD", "")
-    if not pwd:
-        return
-    try:
-        email = MIMEMultipart("alternative")
-        email["Subject"] = "[TaxOps] Automation Error Alert"
-        email["From"]    = ALERT_EMAIL_FROM
-        email["To"]      = ", ".join(ALERT_EMAIL_TO)
-        body = (
-            f"A TaxOps automation script encountered an error:\n\n"
-            f"{msg}\n\n"
-            f"---\n"
-            f"Check GitHub Actions for full logs:\n"
-            f"https://github.com/thenriquezrippling/filings-and-payments/actions\n\n"
-            f"This is an automated alert from the TaxOps Governance Automation Suite."
-        )
-        email.attach(MIMEText(body, "plain"))
-        with smtplib.SMTP("smtp.gmail.com", 587) as s:
-            s.starttls()
-            s.login(ALERT_EMAIL_FROM, pwd)
-            s.sendmail(ALERT_EMAIL_FROM, ALERT_EMAIL_TO, email.as_string())
-    except Exception as e:
-        print(f"ERROR: failed to send alert email: {e}", file=sys.stderr)
-
-
 # -- Slack --------------------------------------------------------------------
 
 def _webhook_url(channel):
@@ -127,12 +87,11 @@ def slack_reply(text, thread_ts, channel, ticket_key=""):
 
 
 def post_error(msg):
-    """Post error to Slack AND send email alert to Tony + Rana."""
+    """Post error to Slack ops channel. GitHub Actions notifications handle email alerts."""
     try:
         slack_post(":rotating_light: *TaxOps Error*\n" + msg, CH_ERROR)
     except Exception:
         pass
-    send_error_email(msg)
     print("ERROR: " + msg, file=sys.stderr)
 
 

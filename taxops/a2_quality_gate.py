@@ -10,6 +10,9 @@ Required fields checked:
   - "Reviewed and signed off by:" line present
   - Salesforce case reference
   - At least one region label
+  - At least one valid Tax Platform component (per Confluence routing table)
+
+Component reference: https://rippling.atlassian.net/wiki/spaces/ENG/pages/5508040353
 
 Dedup: AUTO_FLAG:QUALITY_GATE comment prevents re-alerting on the same ticket.
 Label: `qa-incomplete` added on failure, removed when all checks pass.
@@ -23,6 +26,29 @@ REGION_LABELS = {
     "midwest-region", "IRS-region", "federal-region", "pr-region",
 }
 
+# Valid components from Tax Platform Support tickets routing table
+# Source: https://rippling.atlassian.net/wiki/spaces/ENG/pages/5508040353
+VALID_COMPONENTS = {
+    # Tax Payments
+    "Tax Payment", "Tax Adjustment", "Tax Draft", "Tax Refund",
+    # FF Platform
+    "Filing Factory (FF)", "New Hire Reporting",
+    # EE Filings
+    "W2", "W2C", "1099", "1099c",
+    # Amendments
+    "Amendments Data", "Amendment",
+    # ER Filings
+    "Tax Filing", "CFS and EFS", "Filing Code", "QE Adjustment",
+    "QE Processing", "QE Reconciliation Run", "Quarter End Packages",
+    # Tax Calculation
+    "Tax Calculations", "tax-calculation", "Tax Explanation",
+    # Tax Exchange
+    "Tax Exchange", "Legal Name Change", "Mapping issues",
+    "R&D Credit Migration April '26",
+    # Tax R&D Support
+    "Non-Eng Support Ticket",
+}
+
 # (regex_pattern, human_readable_label)
 REQUIRED_CHECKS = [
     (r"Company\s+ID",                                   "Company ID"),
@@ -34,11 +60,12 @@ REQUIRED_CHECKS = [
 
 def _validate(issue):
     """Return list of failure reasons. Empty list = pass."""
-    fields  = issue["fields"]
-    summary = (fields.get("summary") or "").strip()
-    desc    = desc_text(issue)
-    labels  = get_labels(issue)
-    reasons = []
+    fields     = issue["fields"]
+    summary    = (fields.get("summary") or "").strip()
+    desc       = desc_text(issue)
+    labels     = get_labels(issue)
+    components = [c.get("name", "") for c in (fields.get("components") or [])]
+    reasons    = []
 
     if not summary:
         reasons.append("Missing summary")
@@ -66,13 +93,20 @@ def _validate(issue):
     if not any(l in REGION_LABELS for l in labels):
         reasons.append("Missing geographic region label (west / south / northeast / midwest / IRS / federal / pr)")
 
+    # Component validation — must have at least one valid Tax Platform routing component
+    if not components:
+        reasons.append("No component set — must select a Tax Platform component (Tax Payment, Filing Factory, Amendment, Tax Filing, etc.)")
+    elif not any(c in VALID_COMPONENTS for c in components):
+        invalid = ", ".join(components)
+        reasons.append(f"Component '{invalid}' is not a valid Tax Platform routing component — see routing table")
+
     return reasons
 
 
 def run():
     issues = jira_search(
         f'{BASE_JQL} AND statusCategory != Done AND created >= "{GOVERNANCE_START}" AND updated >= "-30m"',
-        fields=COMMON_FIELDS + ["description"],
+        fields=COMMON_FIELDS + ["description", "components"],
     )
     print(f"[A2] {len(issues)} recently updated tickets to validate")
 

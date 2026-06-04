@@ -24,31 +24,6 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install -r taxops/requirements.txt
-      - name: A1 - WFO Accountability
+      - name: Run TaxOps polling suite
         working-directory: taxops
-        run: python a1_wfo_accountability.py
-        continue-on-error: true
-      - name: A2 - Quality Gate Checker
-        working-directory: taxops
-        run: python a2_quality_gate.py
-        continue-on-error: true
-      - name: A3 - Label Quadrant Validator
-        working-directory: taxops
-        run: python a3_label_quadrant.py
-        continue-on-error: true
-      - name: A4 - Sign-Off Mismatch Detector
-        working-directory: taxops
-        run: python a4_signoff_mismatch.py
-        continue-on-error: true
-      - name: A7 - New Scope Detector
-        working-directory: taxops
-        run: python a7_new_scope.py
-        continue-on-error: true
-      - name: A8 - Auto-Add Ownership Label
-        working-directory: taxops
-        run: python a8_auto_label.py
-        continue-on-error: true
-      - name: A9 - Bad Ticket Notifier
-        working-directory: taxops
-        run: python a9_bad_ticket.py
-        continue-on-error: true
+        run: bash run_polling_suite.sh

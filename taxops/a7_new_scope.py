@@ -45,7 +45,7 @@ def run():
     cutoff = datetime.now(pytz.utc) - timedelta(minutes=30)
 
     issues = jira_search(
-        f'{BASE_JQL} AND status != Done AND updated >= "-30m"',
+        f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND updated >= "-30m"',
         fields=COMMON_FIELDS + ["description"],
     )
     print(f"[A7] {len(issues)} recently updated tickets to scan")

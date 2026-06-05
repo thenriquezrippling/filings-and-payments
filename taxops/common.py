@@ -59,6 +59,9 @@ ET = pytz.timezone("America/New_York")
 
 BASE_JQL = 'project = PF AND issuetype = "Ops - Customer Task"'
 
+# Terminal issues (Done, Closed, etc.) — use in JQL; do not comment or govern closed tickets.
+JQL_OPEN_ONLY = "statusCategory != Done"
+
 COMMON_FIELDS = [
     "summary", "status", "labels", "assignee", "reporter",
     "priority", "created", "updated", "statuscategorychangedate",

@@ -58,19 +58,21 @@ def run():
 
     for issue in done_issues:
         key     = issue["key"]
+        labels  = get_labels(issue)
+        if not any(l.startswith("waiting-for-ops") for l in labels):
+            continue
         summary = issue["fields"].get("summary", "(no summary)")
         url     = issue_url(key)
         rep_tag = reporter_tag_for(issue)
         try:
+            remove_labels_matching(issue, key, "waiting-for-ops")
             if not has_auto_flag(key, "AUTO_FLAG:DONE_UPDATE"):
-                add_comment(key, "AUTO_FLAG:DONE_UPDATE — Ticket resolved. WFO queue exit recorded.")
                 slack_post(
                     f":white_check_mark: *WFO Resolved* {rep_tag} — <{url}|{key}>\n"
                     f"{summary}\nTicket has been marked Done. No further action required.",
                     CH_OPS,
                     ticket_key=key,
                 )
-                remove_labels_matching(issue, key, "waiting-for-ops")
         except Exception as e:
             post_error(f"A1 done-cleanup error on {key}: {e}")
 

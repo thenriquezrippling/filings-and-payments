@@ -15,7 +15,7 @@ OWNERSHIP = "us-taxops-ticket"
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND labels not in ("{OWNERSHIP}")',
+        f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND labels not in ("{OWNERSHIP}")',
         fields=["labels", "summary"],
         max_results=200,
     )

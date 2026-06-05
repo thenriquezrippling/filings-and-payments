@@ -15,7 +15,7 @@ from common import *
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND labels = "bad-ticket"',
+        f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND labels = "bad-ticket"',
         fields=COMMON_FIELDS,
     )
     print(f"[A9] {len(issues)} tickets with bad-ticket label")

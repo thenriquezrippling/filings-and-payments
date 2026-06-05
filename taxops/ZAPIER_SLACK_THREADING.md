@@ -55,3 +55,46 @@ Catch Hook (JSON: message, ticket_key?)
 Adjust names to match your Zap (Storage vs Code vs Tables). The **logic** is what matters.
 
 If everything above matches and it still splits threads, compare **two Task History entries** for the same `ticket_key` and see whether Path A or B ran and what value was read/written in Storage.
+
+---
+
+## Fix checklist: two-path Zap (step-by-step)
+
+Use this when you already have **two Paths** and a **search** step (e.g. “Zap Search Was Found Status”), but Slack still opens a **new** top-level message every time.
+
+### Before you start
+- [ ] You are editing the Zap whose Catch Hook URL is in GitHub **`SLACK_WEBHOOK_OPS`** (TaxOps ops alerts).
+- [ ] In **Task history**, pick one run and confirm the hook payload includes **`ticket_key`** (e.g. `PF-12345`) for ticket alerts.
+
+### 1. Order of steps (top → bottom)
+1. **Catch Hook** (trigger)  
+2. **Lookup** — find an existing row/record for **`ticket_key`** (your “Step 4” / Zap Search / Tables / Storage — name doesn’t matter).  
+3. **Paths** — Path A then Path B (or Path A + **Fallback** Path B).
+
+### 2. Path A — “we already have a thread”
+- [ ] **Path rule:** lookup **found** = `true` (e.g. `Zap Search Was Found Status` **Exactly matches** `true` — your screenshot pattern).  
+- [ ] **Slack step:** map **`thread_ts`** (or “Reply in thread”) to the **stored Slack `ts`** from the **found record** (the field you saved when the first message posted).  
+- [ ] If **`thread_ts` is empty** on this Slack step, Slack will post a **new** parent message even when Path A runs.
+
+### 3. Path B — “first time (or nothing stored)”
+- [ ] **Path rule:** either **Fallback** (“if Path A did not run”) **or** lookup **found** = `false`.  
+- [ ] **Slack step:** normal channel message — **leave `thread_ts` blank**.  
+- [ ] **Immediately after Slack:** **Create or update** the same record your lookup uses:
+  - **Key / match field:** `ticket_key` from the Catch Hook (same string Path A searches for).  
+  - **Value to save:** the **`ts`** returned by Slack for this new message (from the Slack step output).
+
+### 4. Smoke test (two minutes)
+1. Send a test hook with `ticket_key = PF-TEST-THREAD-999` and a short `message`.  
+   - Expect: **Path B**, one new channel message, record **created** with that message’s `ts`.  
+2. Send again with the **same** `ticket_key`, different `message`.  
+   - Expect: **Path A**, message appears **under the first** as a reply.
+
+### 5. If test 2 still starts a new thread
+| Symptom | Likely cause |
+|--------|----------------|
+| Second run still **Path B** | Lookup never finds the row — **Path B is not saving**, or search key ≠ save key (typo, trim, wrong field). |
+| Second run **Path A** but still new top-level | **`thread_ts` not mapped** on Path A’s Slack step, or wrong field from search result. |
+| Intermittent | Two Zaps on the same URL, or **duplicate** Zaps both posting. |
+
+When this checklist is green, TaxOps `ticket_key` threading matches what the Python side sends — no repo change required.
+

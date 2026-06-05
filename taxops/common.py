@@ -72,6 +72,15 @@ def _webhook_url(channel):
 
 
 def slack_post(text, channel, ticket_key=""):
+    """
+    POST JSON to the Zapier Catch Hook for this channel (see _webhook_url).
+
+    Threading is implemented in Zapier, not here: when ``ticket_key`` is set
+    (Jira issue key, e.g. PF-12345), the Zap should look up a stored Slack
+    ``thread_ts`` for that key and reply in thread; otherwise post a new
+    parent message and store its ``ts`` under ``ticket_key``. See
+    ``taxops/ZAPIER_SLACK_THREADING.md``.
+    """
     url     = _webhook_url(channel)
     payload = {"message": text}
     if ticket_key:

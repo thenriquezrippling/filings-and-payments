@@ -1,0 +1,15 @@
+{
+  "week_ending": "2026-06-01",
+  "last_week": {
+    "open": 67,
+    "new": 19,
+    "resolved": 20,
+    "sla_breach": 6,
+    "sla_approach": 7,
+    "qa": 10,
+    "labels": 7,
+    "signoff": 8,
+    "wfo_24": 1,
+    "wfo_72": 1
+  }
+}

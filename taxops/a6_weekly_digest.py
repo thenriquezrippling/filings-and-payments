@@ -12,7 +12,7 @@ Base filters:
                   scoped by resolutiondate to the Mon–Sun of the reported week
 
 WoW comparison stored in taxops/wbr_history.json.
-Governance metrics only cover tickets created >= GOVERNANCE_START.
+Governance metrics cover all open tickets (filter 47964); no created-date cutoff.
 """
 import sys, os, json, re, urllib.parse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,7 +27,7 @@ OPEN_FILTER_ID      = "47964"   # open TaxOps tickets
 COMPLETED_FILTER_ID = "48203"   # completed/resolved TaxOps tickets
 
 BASE_FILTER_JQL = f"filter = {OPEN_FILTER_ID}"
-GOV_FILTER_JQL  = f"filter = {OPEN_FILTER_ID} AND created >= \"{GOVERNANCE_START}\""
+GOV_FILTER_JQL  = BASE_FILTER_JQL  # all open TaxOps tickets
 
 TAX_TYPES = ["SUI", "FML", "FUTA", "SUTA", "941", "940", "W-2", "1099",
              "SDI", "SIT", "FIT", "FICA", "local"]
@@ -179,7 +179,7 @@ def run():
         jql_inactive = BASE_FILTER_JQL
 
     # ------------------------------------------------------------------
-    # Governance: filter 47964 + created since GOVERNANCE_START
+    # Governance: all open tickets on filter 47964
     # ------------------------------------------------------------------
     gov_issues = jira_search(GOV_FILTER_JQL, fields=COMMON_FIELDS, max_results=500)
 
@@ -283,7 +283,7 @@ def run():
         backlog_assessment = f"Intake and resolution balanced this week ({total_new} in, {total_resolved} out)."
 
     if total_gov >= 5:       gov_assessment = f"{total_gov} governance flags detected — a Jira hygiene refresher is recommended."
-    elif total_gov >= 2:     gov_assessment = f"{total_gov} governance flags on new tickets."
+    elif total_gov >= 2:     gov_assessment = f"{total_gov} governance flags on open tickets."
     elif total_gov == 1:     gov_assessment = "1 governance flag this week."
     else:                    gov_assessment = "Ticket quality is strong — no governance flags this week."
 
@@ -311,9 +311,9 @@ def run():
         f"{wow(n_sla_breach, last.get('sla_breach'))} SLA breach{'es' if n_sla_breach != 1 else ''}, "
         f"{n_sla_app} approaching. {n_wfo_24 + n_wfo_72} Waiting for Ops. "
         f"Governance: {total_gov} flag{'s' if total_gov != 1 else ''} ({gov_trend}).\n\n"
-        f"*Quality Gate Issues* _(new tickets since {GOVERNANCE_START})_\n"
+        f"*Quality Gate Issues* _(open tickets)_\n"
         f"• Incomplete QA: {n_qa} — {fmt_links(qa_issues, jql_qa)}\n\n"
-        f"*Labeling / Routing Issues* _(new tickets since {GOVERNANCE_START})_\n"
+        f"*Labeling / Routing Issues* _(open tickets)_\n"
         f"• Missing or invalid label quadrants: {n_labels_bad} — {fmt_links(bad_label_issues, jql_labels)}\n"
         f"• Sign-off mismatches: {n_signoff} — {fmt_links(signoff_issues, jql_signoff)}\n\n"
         f"*Waiting for Ops Aging*\n"

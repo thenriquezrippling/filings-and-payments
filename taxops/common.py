@@ -46,7 +46,7 @@ CH_LEAD  = "ops"
 CH_EXEC  = "exec"
 CH_ERROR = "ops"
 
-GOVERNANCE_START = "2026-05-18"
+GOVERNANCE_START = "2026-05-18"  # cleanup_governance_labels.py only; not used in polling JQL
 
 REGION_LEADS = {
     "west-region":      ("U03BFEP9614", "U0789C02H6F"),

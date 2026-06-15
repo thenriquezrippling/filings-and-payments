@@ -3,7 +3,7 @@ A9 - Bad Ticket Notifier
 Polling every 15 min (Mon–Fri).
 
 Watches for tickets with the `bad-ticket` label.
-Tags reporter + region lead (or @us-taxops-leaders fallback).
+Tags reporter + region lead (or @us-taxops-region-coordinators when region unknown).
 
 Dedup: AUTO_FLAG:BAD_TICKET comment on the Jira issue.
 Re-sweeps all open bad-ticket issues on every run (catch-up for downtime).
@@ -15,7 +15,7 @@ from common import *
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND {JQL_TAXOPS_OWNED} AND labels = "bad-ticket"',
+        f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND {JQL_TAXOPS_OWNED} AND labels = "bad-ticket"',
         fields=COMMON_FIELDS,
     )
     print(f"[A9] {len(issues)} tickets with bad-ticket label")

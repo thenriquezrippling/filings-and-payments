@@ -62,6 +62,10 @@ BASE_JQL = 'project = PF AND issuetype = "Ops - Customer Task"'
 # Terminal issues (Done, Closed, etc.) — use in JQL; do not comment or govern closed tickets.
 JQL_OPEN_ONLY = "statusCategory != Done"
 
+# TaxOps ownership — A8 applies this label first each poll; downstream scripts scope to it.
+TAXOPS_OWNERSHIP_LABEL = "us-taxops-ticket"
+JQL_TAXOPS_OWNED     = f'labels = "{TAXOPS_OWNERSHIP_LABEL}"'
+
 COMMON_FIELDS = [
     "summary", "status", "labels", "assignee", "reporter",
     "priority", "created", "updated", "statuscategorychangedate",

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Run all TaxOps polling automations in one job.
+# - A8 runs first: stamp us-taxops-ticket on any PF Ops ticket missing it.
+# - A1–A7, A9 then run only on tickets that carry that label (see JQL_TAXOPS_OWNED).
 # - Always runs every script (one failure does not skip the rest).
 # - Exits 1 if any script failed (GitHub shows the workflow as failed).
 # - On failure: posts one Slack/Zapier message listing failed scripts + run link.
@@ -23,13 +25,13 @@ run_one() {
   fi
 }
 
-run_one "A1 WFO accountability"      "a1_wfo_accountability.py"
-run_one "A2 Quality gate"          "a2_quality_gate.py"
-run_one "A3 Label quadrant"        "a3_label_quadrant.py"
-run_one "A4 Sign-off mismatch"     "a4_signoff_mismatch.py"
-run_one "A7 New scope detector"    "a7_new_scope.py"
 run_one "A8 Auto ownership label"  "a8_auto_label.py"
-run_one "A9 Bad ticket notifier"   "a9_bad_ticket.py"
+run_one "A1 WFO accountability"    "a1_wfo_accountability.py"
+run_one "A2 Quality gate"        "a2_quality_gate.py"
+run_one "A3 Label quadrant"        "a3_label_quadrant.py"
+run_one "A4 Sign-off mismatch"   "a4_signoff_mismatch.py"
+run_one "A7 New scope detector"  "a7_new_scope.py"
+run_one "A9 Bad ticket notifier" "a9_bad_ticket.py"
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {

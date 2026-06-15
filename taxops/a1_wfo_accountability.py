@@ -4,7 +4,7 @@ Polling every 15 min via GitHub Actions (Mon–Fri only).
 
 Escalation ladder:
   0h  → Initial notification — tags reporter + lead, includes description context
-  24h biz → Escalation — tags @us-taxops-leaders + reporter
+  24h biz → Escalation — tags @us-taxops-leaders + @us-taxops-region-coordinators + reporter
   72h calendar → Hard escalation — tags @taxops-pillar-leads + reporter
   Done → Completion update in thread
 
@@ -144,7 +144,7 @@ def _process(issue, key, summary, url, labels, is_peo,
         add_comment(key, "AUTO_FLAG:WAITING_OPS_24H — 24 business hours elapsed, no response.")
         add_label(issue, key, "waiting-for-ops-24h")
         slack_post(
-            f":alarm_clock: *WFO 24h Escalation* {MEN_LEADERS} {rep_tag} — <{url}|{key}>\n"
+            f":alarm_clock: *WFO 24h Escalation* {MEN_LEADERS} {REGION_COORDINATORS_MENTION} {rep_tag} — <{url}|{key}>\n"
             f"{summary}\n"
             f"*Priority:* {priority} | *Assignee:* {assignee_name}\n"
             f"*Issue:* No response after 24 business hours.\n"

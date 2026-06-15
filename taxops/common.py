@@ -30,7 +30,13 @@ SLACK_WEBHOOK_OPS  = _require("SLACK_WEBHOOK_OPS")
 SLACK_WEBHOOK_EXEC = _require("SLACK_WEBHOOK_EXEC")
 RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")
 
-FALLBACK_MENTION = "<!subteam^S06URQSJGEN>"
+FALLBACK_MENTION = "<!subteam^S06URQSJGEN>"  # @us-taxops-leaders (reporter fallback)
+
+MEN_LEADERS = "<!subteam^S06URQSJGEN>"  # @us-taxops-leaders
+MEN_LEADS2  = "<!subteam^S0ANS8X2B7Y>"  # @taxops-pillar-leads (WFO 72h)
+
+# US TaxOps Region Coordinators — when no region label / no mapped region lead
+REGION_COORDINATORS_MENTION = "<!subteam^S0BAR97SKDG>"
 
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
@@ -39,9 +45,6 @@ CH_OPS   = "ops"
 CH_LEAD  = "ops"
 CH_EXEC  = "exec"
 CH_ERROR = "ops"
-
-MEN_LEADERS = "<!subteam^S06URQSJGEN>"
-MEN_LEADS2  = "<!subteam^S0ANS8X2B7Y>"
 
 GOVERNANCE_START = "2026-05-18"
 
@@ -307,9 +310,9 @@ def reporter_tag_for(issue):
 
 
 def lead_tag_for(labels, is_peo=False):
-    """Return <@UID> for the region lead, or @us-taxops-leaders fallback."""
+    """Return <@UID> for the region lead, or @us-taxops-region-coordinators if unknown."""
     uid = region_lead_uid(labels, is_peo)
-    return f"<@{uid}>" if uid else FALLBACK_MENTION
+    return f"<@{uid}>" if uid else REGION_COORDINATORS_MENTION
 
 
 # -- TaxOps team Slack UID lookup (keyed by Jira displayName, lowercase) ------

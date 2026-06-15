@@ -18,6 +18,21 @@ Non-ticket posts (e.g. `post_error`) send only `message` (no `ticket_key`).
 
 The weekly digest (A6) uses a **different** JSON shape and the **exec** webhook — not this threading model.
 
+## Slack mentions in alert text
+
+Mentions are embedded in the `message` string (Zapier posts them as-is).
+
+| Who | Slack form | When |
+|-----|------------|------|
+| Reporter | `<@UID>` from `TAXOPS_SLACK_UIDS` | Most ticket alerts |
+| Reporter (unknown UID) | `<!subteam^S06URQSJGEN>` @us-taxops-leaders | `reporter_tag_for` fallback |
+| Region lead | `<@UID>` from `REGION_LEADS` + region label | `lead_tag_for` when label maps |
+| Region lead (missing/unknown region) | `<!subteam^S0BAR97SKDG>` US TaxOps Region Coordinators | `lead_tag_for` fallback |
+| WFO 24h escalation | @us-taxops-leaders + Region Coordinators + reporter | A1 only |
+| WFO 72h escalation | @taxops-pillar-leads + reporter | A1 only |
+
+Constants live in `common.py` (`REGION_COORDINATORS_MENTION`, `MEN_LEADERS`, etc.).
+
 ## Why you see a new top-level message each time
 
 Almost always one of these in Zapier:

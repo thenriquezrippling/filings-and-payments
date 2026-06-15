@@ -29,7 +29,7 @@ DEFAULT_SLA = (16, 20)
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND labels = "us-taxops-ticket"',
+        f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND {JQL_TAXOPS_OWNED}',
         fields=COMMON_FIELDS,
         max_results=200,
     )

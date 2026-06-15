@@ -1,9 +1,10 @@
 """
 A8 - Auto-Add Ownership Label
-Polling every 15 min.
+Runs first in each polling cycle (see run_polling_suite.sh).
 
 Silently adds `us-taxops-ticket` to any PF Ops-Customer-Task ticket
 that is missing it. No Jira comment. No Slack message. Fully silent.
+Downstream scripts (A1–A7, A9) scope to tickets with this label.
 This label is permanent and is NEVER removed.
 """
 import sys, os

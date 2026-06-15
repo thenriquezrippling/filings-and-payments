@@ -27,7 +27,7 @@ TONY_SLACK_UID = "U026LRKHS1F"
 
 def run():
     issues = jira_search(
-        f'{BASE_JQL} AND status = "Waiting for Ops"',
+        f'{BASE_JQL} AND {JQL_TAXOPS_OWNED} AND status = "Waiting for Ops"',
         fields=COMMON_FIELDS + ["description"],
     )
     print(f"[A1] {len(issues)} tickets in Waiting for Ops")
@@ -51,7 +51,7 @@ def run():
 
     # Clean up WFO labels from tickets that are Done
     done_issues = jira_search(
-        f'{BASE_JQL} AND status = Done AND labels = "waiting-for-ops"',
+        f'{BASE_JQL} AND {JQL_TAXOPS_OWNED} AND status = Done AND labels = "waiting-for-ops"',
         fields=COMMON_FIELDS,
     )
     print(f"[A1] {len(done_issues)} Done tickets with WFO labels to clean up")

@@ -11,7 +11,7 @@ Required fields checked:
   - Priority set
   - Assignee set
   - "Reviewed and signed off by:" line present
-  - Salesforce case reference
+  - Salesforce Case linked via Connector for Salesforce, or case URL/# in description (fallback)
   - At least one region label
   - At least one valid Tax Platform component (per Confluence routing table)
 
@@ -19,6 +19,7 @@ Component reference: https://rippling.atlassian.net/wiki/spaces/ENG/pages/550804
 
 Dedup: AUTO_FLAG:QUALITY_GATE comment prevents re-alerting on the same ticket.
 Label: `qa-incomplete` added on failure, removed when all checks pass.
+Adds `missing-sfdc-link` when no Salesforce Case is associated via the connector (and no description fallback).
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -85,6 +86,24 @@ def _validate_identity_fields(text):
     return reasons
 
 
+def _validate_salesforce_case(issue):
+    """Require Appfire SF connector Case link; description reference is fallback only."""
+    key  = issue["key"]
+    desc = desc_text(issue) or ""
+
+    if has_salesforce_case_linked(key):
+        return []
+
+    if description_has_salesforce_reference(desc):
+        return []
+
+    return [
+        "No Salesforce Case linked — use Connector for Salesforce (bottom-left panel → "
+        "Associate → Case). If association is not possible, add the Salesforce case URL "
+        "or Case # to the description."
+    ]
+
+
 def _validate(issue):
     """Return list of failure reasons. Empty list = pass."""
     fields     = issue["fields"]
@@ -109,9 +128,7 @@ def _validate(issue):
         if not re.search(r"Reviewed and signed off by", desc, re.IGNORECASE):
             reasons.append('Missing "Reviewed and signed off by:" line')
 
-        sf_pattern = r"(salesforce\.com|Case\s*#\s*\d+|SF-\d+)"
-        if not re.search(sf_pattern, desc, re.IGNORECASE):
-            reasons.append("Missing Salesforce case link or Case # reference")
+    reasons.extend(_validate_salesforce_case(issue))
 
     if not fields.get("priority"):
         reasons.append("Priority not set")
@@ -148,6 +165,7 @@ def run():
 
         try:
             failures = _validate(issue)
+            sf_failure = any("Salesforce Case" in f for f in failures)
 
             if failures:
                 if not has_auto_flag(key, "AUTO_FLAG:QUALITY_GATE"):
@@ -158,6 +176,10 @@ def run():
                         f"Please complete these fields to clear the `qa-incomplete` label."
                     )
                     add_label(issue, key, "qa-incomplete")
+                    if sf_failure:
+                        add_label(issue, key, MISSING_SFDC_LINK_LABEL)
+                    elif MISSING_SFDC_LINK_LABEL in labels:
+                        remove_label(issue, key, MISSING_SFDC_LINK_LABEL)
 
                     is_peo   = "e2e-peo" in labels
                     rep_tag  = reporter_tag_for(issue)
@@ -174,6 +196,9 @@ def run():
                 if "qa-incomplete" in labels:
                     remove_label(issue, key, "qa-incomplete")
                     print(f"[A2] {key} now passes QG — removed qa-incomplete")
+                if MISSING_SFDC_LINK_LABEL in labels:
+                    remove_label(issue, key, MISSING_SFDC_LINK_LABEL)
+                    print(f"[A2] {key} — removed {MISSING_SFDC_LINK_LABEL}")
 
         except Exception as e:
             post_error(f"A2 error on {key}: {e}")

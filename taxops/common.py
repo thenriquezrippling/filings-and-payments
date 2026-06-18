@@ -58,6 +58,21 @@ REGION_LEADS = {
     "pr-region":        ("U04HQQ0TEDN", "U02UTR26FML"),
 }
 
+STANDARD_REGION_LABELS = set(REGION_LEADS.keys())
+FILINGS_AMENDMENTS_REGION = "filings-amendments-region"
+
+AMENDMENT_WORKSTREAM = "Amendment_task"
+FILING_WORKSTREAM    = "filing_task"
+TEAM_AMENDMENTS      = "us-amendments"
+TEAM_FILINGS         = "us-filings"
+TEAM_TAX_FILINGS     = "us-tax-filings"  # legacy alias for filing workstream
+
+WORKSTREAM_TEAM_LEADS = {
+    (AMENDMENT_WORKSTREAM, TEAM_AMENDMENTS): "U03MP2PF3SB",  # Mustaqueem Ahmed
+    (FILING_WORKSTREAM, TEAM_FILINGS):       "U02HU0LG32L",  # Shirley Zheng
+    (FILING_WORKSTREAM, TEAM_TAX_FILINGS):   "U02HU0LG32L",
+}
+
 ET = pytz.timezone("America/New_York")
 
 BASE_JQL = 'project = PF AND issuetype = "Ops - Customer Task"'
@@ -296,10 +311,69 @@ def desc_text(issue):
 
 
 def region_lead_uid(labels, is_peo=False):
+    uid = workstream_team_lead_uid(labels)
+    if uid:
+        return uid
     for lbl, (std, peo) in REGION_LEADS.items():
         if lbl in labels:
             return peo if is_peo else std
     return ""
+
+
+def workstream_team_lead_uid(labels):
+    """Region lead override for filings/amendments workstream + team combos."""
+    label_set = set(labels)
+    for (workstream, team), uid in WORKSTREAM_TEAM_LEADS.items():
+        if workstream in label_set and team in label_set:
+            return uid
+    return ""
+
+
+def is_filings_amendments_routed(labels):
+    """Tickets routed via Amendment_task or filing_task + matching team label."""
+    label_set = set(labels)
+    if AMENDMENT_WORKSTREAM in label_set and TEAM_AMENDMENTS in label_set:
+        return True
+    if FILING_WORKSTREAM in label_set and (TEAM_FILINGS in label_set or TEAM_TAX_FILINGS in label_set):
+        return True
+    return False
+
+
+def has_geographic_label(labels):
+    label_set = set(labels)
+    if label_set & STANDARD_REGION_LABELS:
+        return True
+    return FILINGS_AMENDMENTS_REGION in label_set
+
+
+def normalize_filings_amendments_region(issue, issue_key, labels):
+    """
+    For amendment/filing routed tickets, ensure filings-amendments-region is set.
+    If a standard geographic region label is present instead, replace it silently.
+    Returns (labels, changed).
+    """
+    if not is_filings_amendments_routed(labels):
+        return labels, False
+
+    label_set = set(labels)
+    std_present = label_set & STANDARD_REGION_LABELS
+
+    if FILINGS_AMENDMENTS_REGION in label_set:
+        if not std_present:
+            return labels, False
+        new_labels = [l for l in labels if l not in std_present]
+        update_labels(issue_key, new_labels)
+        issue["fields"]["labels"] = new_labels
+        return new_labels, True
+
+    if std_present:
+        new_labels = [l for l in labels if l not in std_present]
+        new_labels.append(FILINGS_AMENDMENTS_REGION)
+        update_labels(issue_key, new_labels)
+        issue["fields"]["labels"] = new_labels
+        return new_labels, True
+
+    return labels, False
 
 
 def reporter_tag_for(issue):

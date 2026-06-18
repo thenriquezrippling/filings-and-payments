@@ -5,7 +5,7 @@ Polling every 15 min (Mon–Fri). Validates required fields on recently updated 
 Required fields checked:
   - Summary (non-empty)
   - Identity fields in summary and/or description:
-      Company ID; PCIH or FFID (exactly one); Entity Name or EIN (exactly one);
+      Company ID; PCIH or FFID (at least one); Entity Name or EIN (at least one);
       State; Tax Type
   - Description present and contains issue-detail headers
   - Priority set
@@ -23,11 +23,6 @@ Label: `qa-incomplete` added on failure, removed when all checks pass.
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
-
-REGION_LABELS = {
-    "west-region", "south-region", "northeast-region",
-    "midwest-region", "IRS-region", "federal-region", "pr-region",
-}
 
 # Valid components from Tax Platform Support tickets routing table
 # Source: https://rippling.atlassian.net/wiki/spaces/ENG/pages/5508040353
@@ -74,16 +69,12 @@ def _validate_identity_fields(text):
 
     has_pcih = bool(re.search(r"\bPCIH\b", text, re.IGNORECASE))
     has_ffid = bool(re.search(r"\bFFID\b", text, re.IGNORECASE))
-    if has_pcih and has_ffid:
-        reasons.append("Both PCIH and FFID present — provide only one")
-    elif not has_pcih and not has_ffid:
+    if not has_pcih and not has_ffid:
         reasons.append("Missing required field: PCIH or FFID")
 
     has_entity = bool(re.search(r"Entity\s+Name", text, re.IGNORECASE))
     has_ein    = bool(re.search(r"\bEIN\b", text, re.IGNORECASE))
-    if has_entity and has_ein:
-        reasons.append("Both Entity Name and EIN present — provide only one")
-    elif not has_entity and not has_ein:
+    if not has_entity and not has_ein:
         reasons.append("Missing required field: Entity Name or EIN")
 
     if not re.search(r"\bState\b", text, re.IGNORECASE):
@@ -128,8 +119,8 @@ def _validate(issue):
     if not fields.get("assignee"):
         reasons.append("Assignee not set")
 
-    if not any(l in REGION_LABELS for l in labels):
-        reasons.append("Missing geographic region label (west / south / northeast / midwest / IRS / federal / pr)")
+    if not has_geographic_label(labels):
+        reasons.append("Missing geographic region label (west / south / northeast / midwest / IRS / federal / pr / filings-amendments-region)")
 
     # Component validation — must have at least one valid Tax Platform routing component
     if not components:

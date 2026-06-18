@@ -3,10 +3,11 @@ A3 — Label Quadrant Validator
 Polling every 15 min (Mon–Fri). Validates 4 label quadrants on recently updated tickets.
 
 Quadrant rules:
-  Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task
-  Geographic (at least 1): west/south/northeast/midwest/IRS/federal/pr -region
+  Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task | filing_task
+  Geographic (at least 1): west/south/northeast/midwest/IRS/federal/pr -region, or filings-amendments-region
+                           for Amendment_task+us-amendments / filing_task+us-filings (auto-migrated)
   Ownership (required):    us-taxops-ticket
-  Assigned Team (exactly 1): us-amendments | us-tax-filings | e2e-peo | rip-direct | us-nhr
+  Assigned Team (exactly 1): us-amendments | us-filings | us-tax-filings | e2e-peo | rip-direct | us-nhr
 
 Auto-restoration: if governance labels were stripped by an external automation,
 A3 silently re-adds any that appear in the most recent changelog entry and belong
@@ -21,20 +22,20 @@ from common import *
 
 WORKSTREAM_LABELS = {
     "NoticeQueue_task", "new_hire_reporting",
-    "taxnoticebugfix", "Amendment_task",
+    "taxnoticebugfix", "Amendment_task", "filing_task",
 }
-REGION_LABELS = {
-    "west-region", "south-region", "northeast-region",
-    "midwest-region", "IRS-region", "federal-region", "pr-region",
-}
+REGION_LABELS = STANDARD_REGION_LABELS
 TEAM_LABELS = {
-    "us-amendments", "us-tax-filings",
+    "us-amendments", "us-filings", "us-tax-filings",
     "e2e-peo", "rip-direct", "us-nhr",
 }
 OWNERSHIP_LABEL = "us-taxops-ticket"
 
 # All labels we own and are allowed to auto-restore
-ALL_GOVERNANCE_LABELS = WORKSTREAM_LABELS | REGION_LABELS | TEAM_LABELS | {OWNERSHIP_LABEL}
+ALL_GOVERNANCE_LABELS = (
+    WORKSTREAM_LABELS | REGION_LABELS | TEAM_LABELS
+    | {OWNERSHIP_LABEL, FILINGS_AMENDMENTS_REGION}
+)
 
 
 def _validate_quadrants(labels):
@@ -46,16 +47,19 @@ def _validate_quadrants(labels):
 
     ws_present = label_set & WORKSTREAM_LABELS
     if len(ws_present) == 0:
-        issues.append("Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task")
+        issues.append("Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task, filing_task")
     elif len(ws_present) > 1:
         issues.append(f"Multiple workstream labels ({', '.join(sorted(ws_present))}) — exactly 1 required")
 
-    if not (label_set & REGION_LABELS):
+    if is_filings_amendments_routed(labels):
+        if FILINGS_AMENDMENTS_REGION not in label_set and not (label_set & REGION_LABELS):
+            issues.append(f"Missing geographic label: `{FILINGS_AMENDMENTS_REGION}`")
+    elif not (label_set & REGION_LABELS):
         issues.append("Missing geographic region label — add one of: west / south / northeast / midwest / IRS / federal / pr")
 
     team_present = label_set & TEAM_LABELS
     if len(team_present) == 0:
-        issues.append("Missing assigned-team label — add one of: us-amendments, us-tax-filings, e2e-peo, rip-direct, us-nhr")
+        issues.append("Missing assigned-team label — add one of: us-amendments, us-filings, us-tax-filings, e2e-peo, rip-direct, us-nhr")
     elif len(team_present) > 1:
         issues.append(f"Multiple team labels ({', '.join(sorted(team_present))}) — exactly 1 required")
 
@@ -92,6 +96,10 @@ def run():
             if restored:
                 labels = get_labels(issue)
                 print(f"[A3] {key} — auto-restored stripped labels: {', '.join(sorted(restored))}")
+
+            labels, migrated = normalize_filings_amendments_region(issue, key, labels)
+            if migrated:
+                print(f"[A3] {key} — set geographic label to {FILINGS_AMENDMENTS_REGION}")
 
             quad_issues = _validate_quadrants(labels)
 

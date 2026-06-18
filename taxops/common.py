@@ -248,6 +248,21 @@ def has_auto_flag(issue_key, flag):
     return False
 
 
+def hours_since_comment_matching(issue_key, text_substring):
+    """Hours since the latest comment containing substring, or None if never."""
+    latest = None
+    for c in get_comments(issue_key):
+        text = _adf_to_text(c.get("body", {}))
+        if text_substring not in text:
+            continue
+        dt = _safe_parse_dt(c.get("created", ""))
+        if dt and (latest is None or dt > latest):
+            latest = dt
+    if latest is None:
+        return None
+    return (datetime.now(pytz.utc) - latest).total_seconds() / 3600
+
+
 def add_comment(issue_key, text):
     url  = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key + "/comment"
     body = {

@@ -48,6 +48,11 @@ CH_ERROR = "ops"
 
 GOVERNANCE_START = "2026-05-18"  # cleanup_governance_labels.py only; not used in polling JQL
 
+# Appfire Connector for Salesforce & Jira — issue entity property (readable via Jira REST API)
+SF_ASSOCIATIONS_PROPERTY = "com.servicerocket.jira.cloud.issue.salesforce.associations"
+SF_CASE_DESC_PATTERN     = re.compile(r"(salesforce\.com|Case\s*#\s*\d+|SF-\d+)", re.IGNORECASE)
+MISSING_SFDC_LINK_LABEL  = "missing-sfdc-link"
+
 REGION_LEADS = {
     "west-region":      ("U03BFEP9614", "U0789C02H6F"),
     "south-region":     ("U04HQQ0TEDN", "U064GL0HC1X"),
@@ -169,6 +174,71 @@ def get_comments(issue_key):
                        params={"maxResults": 200}, timeout=30)
     r.raise_for_status()
     return r.json().get("comments", [])
+
+
+def get_issue_property(issue_key, property_key):
+    """Return entity property value, or None if unset (404)."""
+    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/properties/{property_key}"
+    r   = requests.get(url, headers=_jira_auth(), timeout=30)
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    return r.json().get("value")
+
+
+def get_remote_issue_links(issue_key):
+    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}/remotelink"
+    r   = requests.get(url, headers=_jira_auth(), timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+def _salesforce_property_has_case(prop_value):
+    """True when Appfire connector entity property includes a Salesforce Case."""
+    if not prop_value or not isinstance(prop_value, dict):
+        return False
+
+    types = str(prop_value.get("types") or "")
+    if re.search(r"\bCase\b", types, re.IGNORECASE):
+        return True
+
+    associations = prop_value.get("associations") or {}
+    if isinstance(associations, dict):
+        for entry in associations.values():
+            if isinstance(entry, dict) and str(entry.get("son", "")).lower() == "case":
+                return True
+    return False
+
+
+def description_has_salesforce_reference(text):
+    return bool(SF_CASE_DESC_PATTERN.search(text or ""))
+
+
+def has_salesforce_case_linked(issue_key):
+    """
+    True when Connector for Salesforce has a Case associated, or a Salesforce
+    remote link is present on the issue.
+    """
+    try:
+        prop = get_issue_property(issue_key, SF_ASSOCIATIONS_PROPERTY)
+        if _salesforce_property_has_case(prop):
+            return True
+    except Exception as e:
+        print(f"[SFDC] Could not read associations for {issue_key}: {e}", file=sys.stderr)
+
+    try:
+        for link in get_remote_issue_links(issue_key):
+            obj   = link.get("object") or {}
+            url   = (obj.get("url") or "").lower()
+            title = (obj.get("title") or "").lower()
+            if "salesforce.com" in url or "/case/" in url:
+                return True
+            if "salesforce" in url and "case" in title:
+                return True
+    except Exception as e:
+        print(f"[SFDC] Could not read remote links for {issue_key}: {e}", file=sys.stderr)
+
+    return False
 
 
 def has_auto_flag(issue_key, flag):

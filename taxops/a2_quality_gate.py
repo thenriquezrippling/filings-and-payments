@@ -4,7 +4,10 @@ Polling every 15 min (Mon–Fri). Validates required fields on recently updated 
 
 Required fields checked:
   - Summary (non-empty)
-  - Description present and contains key field headers
+  - Identity fields in summary and/or description:
+      Company ID; PCIH or FFID (exactly one); Entity Name or EIN (exactly one);
+      State; Tax Type
+  - Description present and contains issue-detail headers
   - Priority set
   - Assignee set
   - "Reviewed and signed off by:" line present
@@ -49,13 +52,46 @@ VALID_COMPONENTS = {
     "Non-Eng Support Ticket",
 }
 
-# (regex_pattern, human_readable_label)
-REQUIRED_CHECKS = [
-    (r"Company\s+ID",                                   "Company ID"),
-    (r"(PCIH\s+ID|FFID|Entity\s+Name|EIN)",             "PCIH ID / FFID / Entity Name / EIN"),
-    (r"(State|Tax\s+Type)",                             "State / Tax Type"),
+# Description-only checks (identity fields may appear in summary instead)
+DESCRIPTION_CHECKS = [
     (r"(Issue|Current\s+Behavior|Expected\s+Behavior)", "Issue / Current Behavior / Expected Behavior"),
 ]
+
+
+def _combined_text(issue):
+    """Searchable text from summary and description."""
+    summary = (issue["fields"].get("summary") or "").strip()
+    desc    = desc_text(issue) or ""
+    return f"{summary}\n{desc}"
+
+
+def _validate_identity_fields(text):
+    """Validate Company ID, PCIH/FFID, Entity Name/EIN, State, and Tax Type."""
+    reasons = []
+
+    if not re.search(r"Company\s+ID", text, re.IGNORECASE):
+        reasons.append("Missing required field: Company ID")
+
+    has_pcih = bool(re.search(r"\bPCIH\b", text, re.IGNORECASE))
+    has_ffid = bool(re.search(r"\bFFID\b", text, re.IGNORECASE))
+    if has_pcih and has_ffid:
+        reasons.append("Both PCIH and FFID present — provide only one")
+    elif not has_pcih and not has_ffid:
+        reasons.append("Missing required field: PCIH or FFID")
+
+    has_entity = bool(re.search(r"Entity\s+Name", text, re.IGNORECASE))
+    has_ein    = bool(re.search(r"\bEIN\b", text, re.IGNORECASE))
+    if has_entity and has_ein:
+        reasons.append("Both Entity Name and EIN present — provide only one")
+    elif not has_entity and not has_ein:
+        reasons.append("Missing required field: Entity Name or EIN")
+
+    if not re.search(r"\bState\b", text, re.IGNORECASE):
+        reasons.append("Missing required field: State")
+    if not re.search(r"Tax\s+Type", text, re.IGNORECASE):
+        reasons.append("Missing required field: Tax Type")
+
+    return reasons
 
 
 def _validate(issue):
@@ -70,10 +106,12 @@ def _validate(issue):
     if not summary:
         reasons.append("Missing summary")
 
+    reasons.extend(_validate_identity_fields(_combined_text(issue)))
+
     if not desc or len(desc.strip()) < 30:
         reasons.append("Description is empty or too short")
     else:
-        for pat, label in REQUIRED_CHECKS:
+        for pat, label in DESCRIPTION_CHECKS:
             if not re.search(pat, desc, re.IGNORECASE):
                 reasons.append(f"Missing required field: {label}")
 

@@ -325,28 +325,74 @@ def transition_issue(issue_key, status_name):
     return False
 
 
-def ops_has_responded(issue_key, reporter_account_id, since_dt=None, assignee_account_id=None):
+def ops_has_responded(issue_key, reporter_account_id, since_dt=None):
     """
-    True when the TaxOps reporter (or current assignee) commented since `since_dt`,
-    indicating Ops responded to Engineering's WFO request.
+    Deprecated alias — use find_actionable_wfo_response().
+    Kept for compatibility; returns True only on actionable ENG-facing response.
+    """
+    return find_actionable_wfo_response(issue_key, since_dt, reporter_account_id) is not None
+
+
+def _is_wfo_internal_coordination(text, commenter_id, reporter_account_id):
+    """Ops leader/manager nudging the reporter — not an answer for Engineering."""
+    if not reporter_account_id or commenter_id == reporter_account_id:
+        return False
+    lowered = text.lower()
+    return any(re.search(p, lowered) for p in _WFO_COORDINATION_PATTERNS)
+
+
+def _is_substantive_eng_response(text, commenter_id, reporter_account_id):
+    """Comment has enough substance to unblock Engineering."""
+    body = text.strip()
+    if len(body) < 25:
+        return False
+    if commenter_id == reporter_account_id and len(body) < 80:
+        lowered = body.lower()
+        if any(re.search(p, lowered) for p in _WFO_REPORTER_STALL_PATTERNS):
+            return False
+    return True
+
+
+def find_actionable_wfo_response(issue_key, since_dt, reporter_account_id):
+    """
+    Newest TaxOps-roster comment since `since_dt` that answers Engineering's WFO
+    request (not internal coordination with the reporter IC).
+
+    Uses TAXOPS_SLACK_UIDS for org membership — assignee is not used because
+    assignee may be Engineering while the ticket is in Waiting for Ops.
     """
     if since_dt is None:
-        return False
+        return None
 
-    ops_ids = {aid for aid in (reporter_account_id, assignee_account_id) if aid}
-    if not ops_ids:
-        return False
-
-    for c in get_comments(issue_key):
-        created = _safe_parse_dt(c.get("created", ""))
+    best = None
+    for comment in get_comments(issue_key):
+        created = _safe_parse_dt(comment.get("created", ""))
         if not created or created < since_dt:
             continue
-        if "AUTO_FLAG:" in _adf_to_text(c.get("body", {})):
+
+        text = _adf_to_text(comment.get("body", {})).strip()
+        if not text or "AUTO_FLAG:" in text:
             continue
-        commenter_id = (c.get("author") or {}).get("accountId", "")
-        if commenter_id in ops_ids:
-            return True
-    return False
+
+        author       = comment.get("author") or {}
+        display_name = author.get("displayName", "")
+        commenter_id = author.get("accountId", "")
+
+        if not is_taxops_org_member(display_name):
+            continue
+        if _is_wfo_internal_coordination(text, commenter_id, reporter_account_id):
+            continue
+        if not _is_substantive_eng_response(text, commenter_id, reporter_account_id):
+            continue
+
+        if best is None or created > best["created"]:
+            best = {
+                "created":      created,
+                "author":       display_name,
+                "comment_id":   comment.get("id"),
+            }
+
+    return best
 
 
 def status_entered_at(issue_key, status_name):
@@ -599,6 +645,36 @@ TAXOPS_SLACK_UIDS = {
 def slack_uid_for_name(display_name):
     """Look up a TaxOps team member's Slack UID by their Jira display name."""
     return TAXOPS_SLACK_UIDS.get((display_name or "").lower().strip(), "")
+
+
+def is_taxops_org_member(display_name):
+    """True when Jira displayName matches the TaxOps org roster in TAXOPS_SLACK_UIDS."""
+    return bool(slack_uid_for_name(display_name))
+
+
+# WFO: leadership nudging the reporter IC — not an ENG-facing Ops response.
+_WFO_COORDINATION_PATTERNS = [
+    r"\bplease\s+(respond|reply|action|update|provide\s+(an?\s+)?update)\b",
+    r"\bfollowing\s+up\b",
+    r"\bcan\s+you\s+(please\s+)?(respond|reply|update|provide)\b",
+    r"\bneed\s+(an\s+)?update\s+from\s+you\b",
+    r"\bwaiting\s+for\s+(you|your\s+response)\b",
+    r"\breporter\s+please\b",
+    r"\bplease\s+review\s+and\s+respond\b",
+    r"\b(action|reminder)\s+required\b",
+    r"\bensure\s+.+\s+respond\b",
+    r"\bping(?:ing)?\s+",
+    r"\btagging\s+",
+]
+
+# WFO: reporter stall without substance — not yet actionable for Engineering.
+_WFO_REPORTER_STALL_PATTERNS = [
+    r"^working on it\.?$",
+    r"^looking into (it|this)\.?$",
+    r"\bwill\s+(follow up|get back|update)\s+(you|eng|engineering|soon)\b",
+    r"^investigating\.?$",
+    r"^on it\.?$",
+]
 
 
 # -- Date helpers -------------------------------------------------------------

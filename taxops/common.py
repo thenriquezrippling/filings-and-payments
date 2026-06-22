@@ -325,26 +325,53 @@ def transition_issue(issue_key, status_name):
     return False
 
 
-def ops_has_responded(issue_key, reporter_account_id, since_minutes=30):
+def ops_has_responded(issue_key, reporter_account_id, since_dt=None, assignee_account_id=None):
     """
-    Returns True if a non-reporter, non-automation comment was added in the
-    last `since_minutes` minutes on a WFO ticket — indicating Ops responded.
+    True when the TaxOps reporter (or current assignee) commented since `since_dt`,
+    indicating Ops responded to Engineering's WFO request.
     """
-    comments = get_comments(issue_key)
-    cutoff   = datetime.now(pytz.utc) - timedelta(minutes=since_minutes)
-    for c in reversed(comments):
+    if since_dt is None:
+        return False
+
+    ops_ids = {aid for aid in (reporter_account_id, assignee_account_id) if aid}
+    if not ops_ids:
+        return False
+
+    for c in get_comments(issue_key):
         created = _safe_parse_dt(c.get("created", ""))
-        if not created or created < cutoff:
+        if not created or created < since_dt:
             continue
-        # Skip our own AUTO_FLAG comments
         if "AUTO_FLAG:" in _adf_to_text(c.get("body", {})):
             continue
-        # Skip comments from the original reporter
         commenter_id = (c.get("author") or {}).get("accountId", "")
-        if commenter_id and commenter_id == reporter_account_id:
-            continue
-        return True
+        if commenter_id in ops_ids:
+            return True
     return False
+
+
+def status_entered_at(issue_key, status_name):
+    """UTC datetime when the issue last transitioned to status_name, or None."""
+    try:
+        url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}?expand=changelog"
+        r   = requests.get(url, headers=_jira_auth(), timeout=30)
+        r.raise_for_status()
+        histories = r.json().get("changelog", {}).get("histories", [])
+    except Exception as e:
+        print(f"[WFO] Could not read changelog for {issue_key}: {e}", file=sys.stderr)
+        return None
+
+    target = status_name.lower()
+    latest = None
+    for history in histories:
+        for item in history.get("items", []):
+            if item.get("field") != "status":
+                continue
+            if (item.get("toString") or "").lower() != target:
+                continue
+            dt = _safe_parse_dt(history.get("created", ""))
+            if dt and (latest is None or dt > latest):
+                latest = dt
+    return latest
 
 
 def restore_governance_labels(issue, issue_key, current_labels, known_labels):

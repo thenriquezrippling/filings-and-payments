@@ -67,23 +67,25 @@ STANDARD_REGION_LABELS = set(REGION_LEADS.keys())
 FILINGS_AMENDMENTS_REGION = "filings-amendments-region"
 
 AMENDMENT_WORKSTREAM = "Amendment_task"
-FILING_WORKSTREAM    = "filing_task"
-FILING_WORKSTREAM_ALT = "Filing_task"  # Confluence SOP spelling
+FILING_WORKSTREAM_LABELS = frozenset({
+    "filing_task",
+    "Filing_task",
+    "filings_task",
+    "Filings_task",
+})
+FILING_WORKSTREAM_DISPLAY = "filing_task / Filing_task / filings_task / Filings_task"
 TEAM_AMENDMENTS      = "us-amendments"
 TEAM_FILINGS         = "us-filings"
 TEAM_TAX_FILINGS     = "us-tax-filings"  # legacy alias for filing workstream
 
-FILINGS_AMENDMENTS_WORKSTREAMS = {
-    AMENDMENT_WORKSTREAM, FILING_WORKSTREAM, FILING_WORKSTREAM_ALT,
-}
+FILINGS_AMENDMENTS_WORKSTREAMS = {AMENDMENT_WORKSTREAM, *FILING_WORKSTREAM_LABELS}
 
 WORKSTREAM_TEAM_LEADS = {
     (AMENDMENT_WORKSTREAM, TEAM_AMENDMENTS): "U03MP2PF3SB",  # Mustaqueem Ahmed
-    (FILING_WORKSTREAM, TEAM_FILINGS):       "U02HU0LG32L",  # Shirley Zheng
-    (FILING_WORKSTREAM, TEAM_TAX_FILINGS):   "U02HU0LG32L",
-    (FILING_WORKSTREAM_ALT, TEAM_FILINGS):   "U02HU0LG32L",
-    (FILING_WORKSTREAM_ALT, TEAM_TAX_FILINGS): "U02HU0LG32L",
 }
+for _filing_ws in FILING_WORKSTREAM_LABELS:
+    WORKSTREAM_TEAM_LEADS[(_filing_ws, TEAM_FILINGS)]     = "U02HU0LG32L"  # Shirley Zheng
+    WORKSTREAM_TEAM_LEADS[(_filing_ws, TEAM_TAX_FILINGS)] = "U02HU0LG32L"
 
 ET = pytz.timezone("America/New_York")
 
@@ -508,7 +510,7 @@ def is_filings_amendments_track(labels):
 
 def is_filings_amendments_relaxed(labels):
     """
-    filings-amendments-region + Amendment_task/filing_task + us-taxops-ticket.
+    filings-amendments-region + Amendment_task or filing workstream + us-taxops-ticket.
     Standard quadrant labels (team, standard region, etc.) are not required.
     """
     label_set = set(labels)
@@ -529,7 +531,7 @@ def filings_amendments_lead_uid(labels):
     label_set = set(labels)
     if AMENDMENT_WORKSTREAM in label_set:
         return "U03MP2PF3SB"
-    if label_set & {FILING_WORKSTREAM, FILING_WORKSTREAM_ALT}:
+    if label_set & FILING_WORKSTREAM_LABELS:
         return "U02HU0LG32L"
     return ""
 
@@ -541,7 +543,7 @@ def is_filings_amendments_routed(labels):
     label_set = set(labels)
     if AMENDMENT_WORKSTREAM in label_set and TEAM_AMENDMENTS in label_set:
         return True
-    if label_set & {FILING_WORKSTREAM, FILING_WORKSTREAM_ALT} and (
+    if label_set & FILING_WORKSTREAM_LABELS and (
         TEAM_FILINGS in label_set or TEAM_TAX_FILINGS in label_set
     ):
         return True

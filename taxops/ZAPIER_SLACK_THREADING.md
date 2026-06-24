@@ -28,7 +28,7 @@ Mentions are embedded in the `message` string (Zapier posts them as-is).
 | Reporter (unknown UID) | `<!subteam^S06URQSJGEN>` @us-taxops-leaders | `reporter_tag_for` fallback |
 | Region lead | `<@UID>` from `REGION_LEADS` + region label | `lead_tag_for` when label maps |
 | Region lead (Amendment_task + us-amendments) | `<@U03MP2PF3SB>` Mustaqueem Ahmed | `lead_tag_for` |
-| Region lead (filing_task + us-filings / us-tax-filings) | `<@U02HU0LG32L>` Shirley Zheng | `lead_tag_for` |
+| Region lead (filing workstream + us-filings / us-tax-filings) | `<@U02HU0LG32L>` Shirley Zheng | `lead_tag_for` |
 | Region lead (missing/unknown region) | `<!subteam^S0BAR97SKDG>` US TaxOps Region Coordinators | `lead_tag_for` fallback |
 | WFO 24h escalation | @us-taxops-leaders + Region Coordinators + reporter | A1 only |
 | WFO 72h escalation | @taxops-pillar-leads + reporter | A1 only |

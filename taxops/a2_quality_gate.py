@@ -11,7 +11,7 @@ Required fields checked:
   - Priority set
   - Assignee set
   - "Reviewed and signed off by:" line present
-  - Salesforce Case linked (exempt for filings-amendments-region + Amendment_task/filing_task)
+  - Salesforce Case linked (exempt for filings-amendments-region + Amendment_task or filing workstream)
   - At least one region label
   - At least one valid Tax Platform component (per Confluence routing table)
 

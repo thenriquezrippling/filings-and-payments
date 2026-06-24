@@ -3,10 +3,10 @@ A3 — Label Quadrant Validator
 Polling every 15 min (Mon–Fri). Validates 4 label quadrants on recently updated tickets.
 
 Quadrant rules:
-  Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task | filing_task | Filing_task
+  Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task | filing_task variants
   Geographic (at least 1): west/south/northeast/midwest/IRS/federal/pr -region, or filings-amendments-region
 
-  Filings/amendments relaxed track (filings-amendments-region + Amendment_task/filing_task
+  Filings/amendments relaxed track (filings-amendments-region + Amendment_task or filing workstream
   + us-taxops-ticket): only those labels required — team and standard region labels waived.
 
 Auto-restoration: if governance labels were stripped by an external automation,
@@ -22,7 +22,7 @@ from common import *
 
 WORKSTREAM_LABELS = {
     "NoticeQueue_task", "new_hire_reporting",
-    "taxnoticebugfix", "Amendment_task", "filing_task", "Filing_task",
+    "taxnoticebugfix", "Amendment_task", *FILING_WORKSTREAM_LABELS,
 }
 REGION_LABELS = STANDARD_REGION_LABELS
 TEAM_LABELS = {
@@ -47,12 +47,12 @@ def _validate_quadrants(labels):
         if len(ws_fa) == 0:
             issues.append(
                 "Missing workstream for filings/amendments track — add "
-                "Amendment_task or filing_task / Filing_task"
+                f"Amendment_task or {FILING_WORKSTREAM_DISPLAY}"
             )
         elif len(ws_fa) > 1:
             issues.append(
                 f"Multiple filings/amendments workstream labels ({', '.join(sorted(ws_fa))}) "
-                "— exactly one of Amendment_task or filing_task required"
+                f"— exactly one of Amendment_task or {FILING_WORKSTREAM_DISPLAY} required"
             )
         if FILINGS_AMENDMENTS_REGION not in label_set:
             issues.append(f"Missing geographic label: `{FILINGS_AMENDMENTS_REGION}`")
@@ -62,7 +62,7 @@ def _validate_quadrants(labels):
         ws_fa = label_set & FILINGS_AMENDMENTS_WORKSTREAMS
         if len(ws_fa) == 0:
             issues.append(
-                "filings-amendments-region set — add Amendment_task or filing_task / Filing_task "
+                f"filings-amendments-region set — add Amendment_task or {FILING_WORKSTREAM_DISPLAY} "
                 "to determine routing"
             )
         elif len(ws_fa) > 1:
@@ -79,7 +79,7 @@ def _validate_quadrants(labels):
 
     ws_present = label_set & WORKSTREAM_LABELS
     if len(ws_present) == 0:
-        issues.append("Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task, filing_task, Filing_task")
+        issues.append(f"Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task, {FILING_WORKSTREAM_DISPLAY}")
     elif len(ws_present) > 1:
         issues.append(f"Multiple workstream labels ({', '.join(sorted(ws_present))}) — exactly 1 required")
 

@@ -3,11 +3,11 @@ A3 — Label Quadrant Validator
 Polling every 15 min (Mon–Fri). Validates 4 label quadrants on recently updated tickets.
 
 Quadrant rules:
-  Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task | filing_task
+  Workstream (exactly 1):  NoticeQueue_task | new_hire_reporting | taxnoticebugfix | Amendment_task | filing_task | Filing_task
   Geographic (at least 1): west/south/northeast/midwest/IRS/federal/pr -region, or filings-amendments-region
-                           for Amendment_task+us-amendments / filing_task+us-filings (auto-migrated)
-  Ownership (required):    us-taxops-ticket
-  Assigned Team (exactly 1): us-amendments | us-filings | us-tax-filings | e2e-peo | rip-direct | us-nhr
+
+  Filings/amendments relaxed track (filings-amendments-region + Amendment_task/filing_task
+  + us-taxops-ticket): only those labels required — team and standard region labels waived.
 
 Auto-restoration: if governance labels were stripped by an external automation,
 A3 silently re-adds any that appear in the most recent changelog entry and belong
@@ -22,7 +22,7 @@ from common import *
 
 WORKSTREAM_LABELS = {
     "NoticeQueue_task", "new_hire_reporting",
-    "taxnoticebugfix", "Amendment_task", "filing_task",
+    "taxnoticebugfix", "Amendment_task", "filing_task", "Filing_task",
 }
 REGION_LABELS = STANDARD_REGION_LABELS
 TEAM_LABELS = {
@@ -42,19 +42,48 @@ def _validate_quadrants(labels):
     label_set = set(labels)
     issues    = []
 
+    if is_filings_amendments_relaxed(labels):
+        ws_fa = label_set & FILINGS_AMENDMENTS_WORKSTREAMS
+        if len(ws_fa) == 0:
+            issues.append(
+                "Missing workstream for filings/amendments track — add "
+                "Amendment_task or filing_task / Filing_task"
+            )
+        elif len(ws_fa) > 1:
+            issues.append(
+                f"Multiple filings/amendments workstream labels ({', '.join(sorted(ws_fa))}) "
+                "— exactly one of Amendment_task or filing_task required"
+            )
+        if FILINGS_AMENDMENTS_REGION not in label_set:
+            issues.append(f"Missing geographic label: `{FILINGS_AMENDMENTS_REGION}`")
+        return issues
+
+    if is_filings_amendments_track(labels):
+        ws_fa = label_set & FILINGS_AMENDMENTS_WORKSTREAMS
+        if len(ws_fa) == 0:
+            issues.append(
+                "filings-amendments-region set — add Amendment_task or filing_task / Filing_task "
+                "to determine routing"
+            )
+        elif len(ws_fa) > 1:
+            issues.append(
+                f"Multiple filings/amendments workstream labels ({', '.join(sorted(ws_fa))}) "
+                "— exactly one required"
+            )
+        if OWNERSHIP_LABEL not in label_set:
+            issues.append(f"Missing ownership label: `{OWNERSHIP_LABEL}`")
+        return issues
+
     if OWNERSHIP_LABEL not in label_set:
         issues.append(f"Missing ownership label: `{OWNERSHIP_LABEL}`")
 
     ws_present = label_set & WORKSTREAM_LABELS
     if len(ws_present) == 0:
-        issues.append("Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task, filing_task")
+        issues.append("Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task, filing_task, Filing_task")
     elif len(ws_present) > 1:
         issues.append(f"Multiple workstream labels ({', '.join(sorted(ws_present))}) — exactly 1 required")
 
-    if is_filings_amendments_routed(labels):
-        if FILINGS_AMENDMENTS_REGION not in label_set and not (label_set & REGION_LABELS):
-            issues.append(f"Missing geographic label: `{FILINGS_AMENDMENTS_REGION}`")
-    elif not (label_set & REGION_LABELS):
+    if not (label_set & REGION_LABELS):
         issues.append("Missing geographic region label — add one of: west / south / northeast / midwest / IRS / federal / pr")
 
     team_present = label_set & TEAM_LABELS

@@ -68,14 +68,21 @@ FILINGS_AMENDMENTS_REGION = "filings-amendments-region"
 
 AMENDMENT_WORKSTREAM = "Amendment_task"
 FILING_WORKSTREAM    = "filing_task"
+FILING_WORKSTREAM_ALT = "Filing_task"  # Confluence SOP spelling
 TEAM_AMENDMENTS      = "us-amendments"
 TEAM_FILINGS         = "us-filings"
 TEAM_TAX_FILINGS     = "us-tax-filings"  # legacy alias for filing workstream
+
+FILINGS_AMENDMENTS_WORKSTREAMS = {
+    AMENDMENT_WORKSTREAM, FILING_WORKSTREAM, FILING_WORKSTREAM_ALT,
+}
 
 WORKSTREAM_TEAM_LEADS = {
     (AMENDMENT_WORKSTREAM, TEAM_AMENDMENTS): "U03MP2PF3SB",  # Mustaqueem Ahmed
     (FILING_WORKSTREAM, TEAM_FILINGS):       "U02HU0LG32L",  # Shirley Zheng
     (FILING_WORKSTREAM, TEAM_TAX_FILINGS):   "U02HU0LG32L",
+    (FILING_WORKSTREAM_ALT, TEAM_FILINGS):   "U02HU0LG32L",
+    (FILING_WORKSTREAM_ALT, TEAM_TAX_FILINGS): "U02HU0LG32L",
 }
 
 ET = pytz.timezone("America/New_York")
@@ -481,18 +488,62 @@ def region_lead_uid(labels, is_peo=False):
 def workstream_team_lead_uid(labels):
     """Region lead override for filings/amendments workstream + team combos."""
     label_set = set(labels)
+    if is_filings_amendments_track(labels) and has_filings_amendments_workstream(labels):
+        uid = filings_amendments_lead_uid(labels)
+        if uid:
+            return uid
     for (workstream, team), uid in WORKSTREAM_TEAM_LEADS.items():
         if workstream in label_set and team in label_set:
             return uid
     return ""
 
 
+def has_filings_amendments_workstream(labels):
+    return bool(set(labels) & FILINGS_AMENDMENTS_WORKSTREAMS)
+
+
+def is_filings_amendments_track(labels):
+    return FILINGS_AMENDMENTS_REGION in set(labels)
+
+
+def is_filings_amendments_relaxed(labels):
+    """
+    filings-amendments-region + Amendment_task/filing_task + us-taxops-ticket.
+    Standard quadrant labels (team, standard region, etc.) are not required.
+    """
+    label_set = set(labels)
+    return (
+        FILINGS_AMENDMENTS_REGION in label_set
+        and has_filings_amendments_workstream(labels)
+        and TAXOPS_OWNERSHIP_LABEL in label_set
+    )
+
+
+def is_filings_amendments_sfdc_exempt(labels):
+    """SFDC case link not required on the filings/amendments track."""
+    return is_filings_amendments_track(labels) and has_filings_amendments_workstream(labels)
+
+
+def filings_amendments_lead_uid(labels):
+    """Route to Mustaqueem (amendments) or Shirley (filings) from workstream label."""
+    label_set = set(labels)
+    if AMENDMENT_WORKSTREAM in label_set:
+        return "U03MP2PF3SB"
+    if label_set & {FILING_WORKSTREAM, FILING_WORKSTREAM_ALT}:
+        return "U02HU0LG32L"
+    return ""
+
+
 def is_filings_amendments_routed(labels):
-    """Tickets routed via Amendment_task or filing_task + matching team label."""
+    """Tickets on the filings/amendments track (region + workstream, or legacy team combo)."""
+    if is_filings_amendments_track(labels) and has_filings_amendments_workstream(labels):
+        return True
     label_set = set(labels)
     if AMENDMENT_WORKSTREAM in label_set and TEAM_AMENDMENTS in label_set:
         return True
-    if FILING_WORKSTREAM in label_set and (TEAM_FILINGS in label_set or TEAM_TAX_FILINGS in label_set):
+    if label_set & {FILING_WORKSTREAM, FILING_WORKSTREAM_ALT} and (
+        TEAM_FILINGS in label_set or TEAM_TAX_FILINGS in label_set
+    ):
         return True
     return False
 

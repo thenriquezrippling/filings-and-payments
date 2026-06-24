@@ -11,7 +11,7 @@ Required fields checked:
   - Priority set
   - Assignee set
   - "Reviewed and signed off by:" line present
-  - Salesforce Case linked via Connector for Salesforce, or case URL/# in description (fallback)
+  - Salesforce Case linked (exempt for filings-amendments-region + Amendment_task/filing_task)
   - At least one region label
   - At least one valid Tax Platform component (per Confluence routing table)
 
@@ -88,6 +88,10 @@ def _validate_identity_fields(text):
 
 def _validate_salesforce_case(issue):
     """Require Appfire SF connector Case link; description reference is fallback only."""
+    labels = get_labels(issue)
+    if is_filings_amendments_sfdc_exempt(labels):
+        return []
+
     key  = issue["key"]
     desc = desc_text(issue) or ""
 

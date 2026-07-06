@@ -227,12 +227,20 @@ def run():
 
     tax_lines = []
     for tax_type, issues in tax_type_data:
-        tax_lines.append(f"  • *{tax_type}* ({len(issues)}): {fmt_links(issues, BASE_FILTER_JQL + f' AND summary ~ \"{tax_type}\"')}")
+        tax_jql = f' AND summary ~ "{tax_type}"'
+        tax_lines.append(
+            f"  • *{tax_type}* ({len(issues)}): "
+            f"{fmt_links(issues, BASE_FILTER_JQL + tax_jql)}"
+        )
     tax_str = "\n".join(tax_lines) if tax_lines else "  • None identified"
 
     bigram_lines = []
     for phrase, issues in bigram_data:
-        bigram_lines.append(f'  • *"{phrase}"* ({len(issues)}): {fmt_links(issues, GOV_FILTER_JQL + f" AND summary ~ \\\"{phrase}\\\"")}')
+        phrase_jql = f' AND summary ~ "{phrase}"'
+        bigram_lines.append(
+            f'  • *"{phrase}"* ({len(issues)}): '
+            f"{fmt_links(issues, GOV_FILTER_JQL + phrase_jql)}"
+        )
     bigram_str = "\n".join(bigram_lines) if bigram_lines else "  • None identified"
 
     # ------------------------------------------------------------------

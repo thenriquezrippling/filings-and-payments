@@ -605,6 +605,12 @@ def lead_tag_for(labels, is_peo=False):
 TAXOPS_SLACK_UIDS = {
     "abhilash jodu":               "U08SSGLP076",
     "aisha fathima":               "U08MEKYFGC8",
+    "akhil adimulla":                 "U0BBPSEH4VC",
+    "apoorva mogadampally":           "U0BCL76EN8G",
+    "dwithin d":                      "U0BBRUD2VEE",
+    "firose m i":                     "U0BEHGSM79D",
+    "jyothi nagmantre":               "U0BEVLB4ZD3",
+    "marilyn mahima":                 "U0BF2M81VMJ",
     "alekya reddy":                "U0A5RCNL38U",
     "aman modem":                  "U0ARYG5FA1K",
     "anees fathima":               "U08TRSG09FU",

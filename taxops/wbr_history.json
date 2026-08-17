@@ -1,15 +1,15 @@
 {
-  "week_ending": "2026-08-10",
+  "week_ending": "2026-08-17",
   "last_week": {
     "open": 100,
-    "new": 12,
-    "resolved": 40,
-    "sla_breach": 37,
-    "sla_approach": 4,
-    "qa": 15,
-    "labels": 40,
-    "signoff": 43,
-    "wfo_24": 11,
-    "wfo_72": 15
+    "new": 22,
+    "resolved": 26,
+    "sla_breach": 42,
+    "sla_approach": 5,
+    "qa": 14,
+    "labels": 43,
+    "signoff": 48,
+    "wfo_24": 14,
+    "wfo_72": 14
   }
 }

@@ -645,6 +645,7 @@ TAXOPS_SLACK_UIDS = {
     "lakshmi harika majety":       "U04HQQ0TEDN",
     "lakshmi sridevi iragavarapu": "U092A416KN1",
     "laxmi sirisha":               "U08VCUGSSGG",
+    "laxmi sirisha siri":          "U08VCUGSSGG",
     "magdalina augustine":         "U05U1E7C8H5",
     "mahender n":                  "U0B3B3FJ69E",
     "maninder singh":              "U09L6M6EJ1X",

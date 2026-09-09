@@ -30,12 +30,12 @@ SLACK_WEBHOOK_OPS  = _require("SLACK_WEBHOOK_OPS")
 SLACK_WEBHOOK_EXEC = _require("SLACK_WEBHOOK_EXEC")
 RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")
 
-FALLBACK_MENTION = "<!subteam^S06URQSJGEN>"  # @us-taxops-leaders (reporter fallback)
+FALLBACK_MENTION = "<!subteam^S0BAR97SKDG>"  # @us-taxops-region-coordinators (reporter fallback)
 
-MEN_LEADERS = "<!subteam^S06URQSJGEN>"  # @us-taxops-leaders
-MEN_LEADS2  = "<!subteam^S0ANS8X2B7Y>"  # @taxops-pillar-leads (WFO 72h)
+MEN_LEADERS = "<!subteam^S0BAR97SKDG>"  # @us-taxops-region-coordinators (WFO 24h)
+MEN_LEADS2  = "<!subteam^S06URQSJGEN>"  # @us-taxops-leaders (WFO 72h)
 
-# US TaxOps Region Coordinators — when no region label / no mapped region lead
+# US TaxOps Region Coordinators â when no region label / no mapped region lead
 REGION_COORDINATORS_MENTION = "<!subteam^S0BAR97SKDG>"
 
 JIRA_PROJECT = "PF"
@@ -48,7 +48,7 @@ CH_ERROR = "ops"
 
 GOVERNANCE_START = "2026-05-18"  # cleanup_governance_labels.py only; not used in polling JQL
 
-# Appfire Connector for Salesforce & Jira — issue entity property (readable via Jira REST API)
+# Appfire Connector for Salesforce & Jira â issue entity property (readable via Jira REST API)
 SF_ASSOCIATIONS_PROPERTY = "com.servicerocket.jira.cloud.issue.salesforce.associations"
 SF_CASE_DESC_PATTERN     = re.compile(r"(salesforce\.com|Case\s*#\s*\d+|SF-\d+)", re.IGNORECASE)
 MISSING_SFDC_LINK_LABEL  = "missing-sfdc-link"
@@ -91,10 +91,10 @@ ET = pytz.timezone("America/New_York")
 
 BASE_JQL = 'project = PF AND issuetype = "Ops - Customer Task"'
 
-# Terminal issues (Done, Closed, etc.) — use in JQL; do not comment or govern closed tickets.
+# Terminal issues (Done, Closed, etc.) â use in JQL; do not comment or govern closed tickets.
 JQL_OPEN_ONLY = "statusCategory != Done"
 
-# TaxOps ownership — A8 applies this label first each poll; downstream scripts scope to it.
+# TaxOps ownership â A8 applies this label first each poll; downstream scripts scope to it.
 TAXOPS_OWNERSHIP_LABEL = "us-taxops-ticket"
 JQL_TAXOPS_OWNED     = f'labels = "{TAXOPS_OWNERSHIP_LABEL}"'
 
@@ -336,14 +336,14 @@ def transition_issue(issue_key, status_name):
 
 def ops_has_responded(issue_key, reporter_account_id, since_dt=None):
     """
-    Deprecated alias — use find_actionable_wfo_response().
+    Deprecated alias â use find_actionable_wfo_response().
     Kept for compatibility; returns True only on actionable ENG-facing response.
     """
     return find_actionable_wfo_response(issue_key, since_dt, reporter_account_id) is not None
 
 
 def _is_wfo_internal_coordination(text, commenter_id, reporter_account_id):
-    """Ops leader/manager nudging the reporter — not an answer for Engineering."""
+    """Ops leader/manager nudging the reporter â not an answer for Engineering."""
     if not reporter_account_id or commenter_id == reporter_account_id:
         return False
     lowered = text.lower()
@@ -367,7 +367,7 @@ def find_actionable_wfo_response(issue_key, since_dt, reporter_account_id):
     Newest TaxOps-roster comment since `since_dt` that answers Engineering's WFO
     request (not internal coordination with the reporter IC).
 
-    Uses TAXOPS_SLACK_UIDS for org membership — assignee is not used because
+    Uses TAXOPS_SLACK_UIDS for org membership â assignee is not used because
     assignee may be Engineering while the ticket is in Waiting for Ops.
     """
     if since_dt is None:
@@ -588,7 +588,7 @@ def normalize_filings_amendments_region(issue, issue_key, labels):
 
 
 def reporter_tag_for(issue):
-    """Return <@UID> for the ticket reporter, or @us-taxops-leaders fallback."""
+    """Return <@UID> for the ticket reporter, or @us-taxops-region-coordinators fallback."""
     name = (issue.get("fields", {}).get("reporter") or {}).get("displayName", "")
     uid  = slack_uid_for_name(name)
     return f"<@{uid}>" if uid else FALLBACK_MENTION
@@ -712,7 +712,7 @@ def is_taxops_org_member(display_name):
     return bool(slack_uid_for_name(display_name))
 
 
-# WFO: leadership nudging the reporter IC — not an ENG-facing Ops response.
+# WFO: leadership nudging the reporter IC â not an ENG-facing Ops response.
 _WFO_COORDINATION_PATTERNS = [
     r"\bplease\s+(respond|reply|action|update|provide\s+(an?\s+)?update)\b",
     r"\bfollowing\s+up\b",
@@ -727,7 +727,7 @@ _WFO_COORDINATION_PATTERNS = [
     r"\btagging\s+",
 ]
 
-# WFO: reporter stall without substance — not yet actionable for Engineering.
+# WFO: reporter stall without substance â not yet actionable for Engineering.
 _WFO_REPORTER_STALL_PATTERNS = [
     r"^working on it\.?$",
     r"^looking into (it|this)\.?$",

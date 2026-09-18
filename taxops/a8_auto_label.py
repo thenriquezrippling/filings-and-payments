@@ -56,6 +56,10 @@ def _labels_any(allowed_labels):
 
 
 def run():
+    if shared_quality_gate_enabled():
+        print("[A8] shared Quality Gate orchestrator is enabled; origin labels must be explicit; no auto-stamping performed")
+        return
+
     issues = jira_search(
         f'{BASE_JQL} AND {JQL_OPEN_ONLY} '
         f'AND labels not in ("{OWNERSHIP}") '

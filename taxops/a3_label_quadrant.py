@@ -95,7 +95,37 @@ def _validate_quadrants(labels):
     return issues
 
 
+def validate_label_quadrants(labels, shared_origin_mode=False):
+    """Side-effect-free label quadrant validation for the shared Quality Gate."""
+    if not shared_origin_mode:
+        return _validate_quadrants(labels)
+
+    label_set = set(labels or [])
+    issues = []
+
+    ws_present = label_set & WORKSTREAM_LABELS
+    if len(ws_present) == 0:
+        issues.append(f"Missing workstream label — add one of: NoticeQueue_task, new_hire_reporting, taxnoticebugfix, Amendment_task, {FILING_WORKSTREAM_DISPLAY}")
+    elif len(ws_present) > 1:
+        issues.append(f"Multiple workstream labels ({', '.join(sorted(ws_present))}) — exactly 1 required")
+
+    if not (label_set & (REGION_LABELS | {FILINGS_AMENDMENTS_REGION})):
+        issues.append("Missing geographic region label — add one of: west / south / northeast / midwest / IRS / federal / pr / filings-amendments-region")
+
+    team_present = label_set & TEAM_LABELS
+    if len(team_present) == 0:
+        issues.append("Missing assigned-team label — add one of: us-amendments, us-filings, us-tax-filings, e2e-peo, rip-direct, us-nhr")
+    elif len(team_present) > 1:
+        issues.append(f"Multiple team labels ({', '.join(sorted(team_present))}) — exactly 1 required")
+
+    return issues
+
+
 def run():
+    if shared_quality_gate_enabled():
+        print("[A3] shared Quality Gate orchestrator is enabled; standalone label mutations skipped")
+        return
+
     issues = jira_search(
         f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND {JQL_TAXOPS_OWNED} AND updated >= "-30m"',
         fields=COMMON_FIELDS,

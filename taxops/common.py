@@ -786,3 +786,80 @@ def calendar_hours_since(dt_str):
 
 def issue_url(key):
     return JIRA_BASE_URL + "/browse/" + key
+
+# -- Shared Quality Gate (feature-flagged; disabled by default) ---------------
+
+def shared_quality_gate_enabled():
+    return os.getenv("SHARED_QUALITY_GATE_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+
+ORIGIN_TEAM_LABELS = {
+    "us-taxops-ticket": "TaxOps",
+    "peo-ops-ticket": "PEO Ops",
+    "compliance-tickets": "Compliance",
+}
+VALID_ORIGIN_LABELS = set(ORIGIN_TEAM_LABELS.keys())
+
+SHARED_WORKSTREAM_LABELS = frozenset({"NoticeQueue_task", "new_hire_reporting", "taxnoticebugfix", "Amendment_task", *FILING_WORKSTREAM_LABELS})
+SHARED_GEOGRAPHIC_LABELS = frozenset(STANDARD_REGION_LABELS | {FILINGS_AMENDMENTS_REGION})
+SHARED_FUNCTIONAL_TEAM_LABELS = frozenset({"us-amendments", "e2e-peo", "rip-direct", "us-nhr", "us-filings", TEAM_TAX_FILINGS})
+
+STANDARD_ENGINEERING_PRIORITY_LABELS = frozenset({"p0_priority", "p1_priority", "p2_priority", "p3_priority", "p4_priority"})
+JIRA_PRIORITY_TO_ENGINEERING_LABEL = {"Highest": "p1_priority", "High": "p2_priority", "Medium": "p3_priority", "Low": "p4_priority"}
+SHARED_QG_FAILURE_LABELS = frozenset({"qa-incomplete", "missing-labels", "signoff-mismatch"})
+
+_ORIGIN_ROUTE_ENV = {
+    "TaxOps": "QG_TAXOPS_REVIEWER_DESTINATION",
+    "PEO Ops": "QG_PEO_OPS_REVIEWER_DESTINATION",
+    "Compliance": "QG_COMPLIANCE_REVIEWER_DESTINATION",
+}
+
+def validate_origin_team_labels(labels):
+    label_set = set(labels or [])
+    present = sorted(label_set & VALID_ORIGIN_LABELS)
+    failures = []
+    if not present:
+        failures.append("Missing originating-team label. Add exactly one of: us-taxops-ticket, peo-ops-ticket, or compliance-tickets.")
+    elif len(present) > 1:
+        failures.append("Multiple originating-team labels found. Keep exactly one.")
+    if "e2e-peo" in label_set and "peo-ops-ticket" not in label_set:
+        failures.append("PEO Ops tickets must use peo-ops-ticket; e2e-peo does not satisfy the originating-team requirement.")
+    return {"origin_team": ORIGIN_TEAM_LABELS[present[0]] if len(present) == 1 else "", "present_labels": present, "failures": failures}
+
+def desired_engineering_priority_label(priority_name):
+    return JIRA_PRIORITY_TO_ENGINEERING_LABEL.get((priority_name or "").strip(), "")
+
+def priority_label_plan(labels, priority_name, reviewer_validation_verified=False, p0_verified=False):
+    label_set = set(labels or [])
+    desired = desired_engineering_priority_label(priority_name)
+    failures, warnings = [], []
+    if not desired:
+        failures.append("Jira Priority must be one of: Highest, High, Medium, or Low.")
+    if "p0_priority" in label_set and not p0_verified:
+        failures.append("p0_priority is present but P0 approval cannot be verified.")
+    if desired and not reviewer_validation_verified:
+        warnings.append(f"Desired Engineering priority label is {desired}, but reviewer validation is unavailable; no priority labels will be changed.")
+        return {"desired": desired, "present_standard": sorted(label_set & STANDARD_ENGINEERING_PRIORITY_LABELS), "to_add": [], "to_remove": [], "failures": failures, "warnings": warnings}
+    to_remove, to_add = [], []
+    if desired and reviewer_validation_verified:
+        to_remove = sorted((label_set & (STANDARD_ENGINEERING_PRIORITY_LABELS - {"p0_priority"})) - {desired})
+        if desired not in label_set:
+            to_add = [desired]
+    return {"desired": desired, "present_standard": sorted(label_set & STANDARD_ENGINEERING_PRIORITY_LABELS), "to_add": to_add, "to_remove": to_remove, "failures": failures, "warnings": warnings}
+
+def reviewer_validation_status(issue, origin_team):
+    return {"status": "unavailable", "verified": False, "failure": "Reviewer validation is unavailable: no controlled Jira field, approval state, role-backed label, or author-verified comment is configured."}
+
+def routing_config_status(origin_team):
+    if not origin_team:
+        return {"status": "missing", "destination": "", "failure": "Cannot resolve routing without exactly one originating-team label."}
+    env_name = _ORIGIN_ROUTE_ENV.get(origin_team, "")
+    destination = os.getenv(env_name, "").strip() if env_name else ""
+    if not destination:
+        return {"status": "missing", "destination": "", "failure": f"Missing Quality Gate routing configuration for {origin_team}."}
+    return {"status": "configured", "destination": destination, "failure": ""}
+
+def p0_verification_status(labels):
+    if "p0_priority" not in set(labels or []):
+        return {"status": "not_present", "verified": True, "failure": ""}
+    return {"status": "unavailable", "verified": False, "failure": "p0_priority is present, but approved P0 cannot be distinguished from stale or unauthorized P0 in repository-supported configuration."}
+

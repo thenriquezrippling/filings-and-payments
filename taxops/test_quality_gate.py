@@ -57,3 +57,52 @@ def test_same_rules_apply_to_all_origin_teams(monkeypatch):
         assert result["a3_failures"] == []
         assert result["a4_failures"] == []
         assert result["reviewer_validation_status"] == "unavailable"
+
+def test_a8_disabled_mode_preserves_legacy_auto_label(monkeypatch):
+    import a8_auto_label
+    monkeypatch.setenv("SHARED_QUALITY_GATE_ENABLED", "false")
+    issue_obj = {"key": "PF-1", "fields": {"labels": ["NoticeQueue_task"], "summary": "s"}}
+    calls = []
+    monkeypatch.setattr(a8_auto_label, "jira_search", lambda *a, **k: [issue_obj])
+    monkeypatch.setattr(a8_auto_label, "update_labels", lambda key, labels: calls.append((key, labels)))
+    a8_auto_label.run()
+    assert calls == [("PF-1", ["NoticeQueue_task", "us-taxops-ticket"])]
+
+
+def test_a8_enabled_mode_no_origin_mutation(monkeypatch):
+    import a8_auto_label
+    monkeypatch.setenv("SHARED_QUALITY_GATE_ENABLED", "true")
+    monkeypatch.setattr(a8_auto_label, "jira_search", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not search")))
+    monkeypatch.setattr(a8_auto_label, "update_labels", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not mutate")))
+    a8_auto_label.run()
+
+
+def test_a8_preserves_existing_origin_labels_in_both_modes(monkeypatch):
+    import a8_auto_label
+    for enabled in ("false", "true"):
+        monkeypatch.setenv("SHARED_QUALITY_GATE_ENABLED", enabled)
+        calls = []
+        issue_obj = {"key": "PF-1", "fields": {"labels": ["us-taxops-ticket", "NoticeQueue_task"], "summary": "s"}}
+        monkeypatch.setattr(a8_auto_label, "jira_search", lambda *a, **k: [issue_obj])
+        monkeypatch.setattr(a8_auto_label, "update_labels", lambda key, labels: calls.append((key, labels)))
+        a8_auto_label.run()
+        assert calls == []
+
+
+def test_a8_shared_mode_does_not_guess_missing_or_non_taxops_origin(monkeypatch):
+    import a8_auto_label
+    monkeypatch.setenv("SHARED_QUALITY_GATE_ENABLED", "true")
+    calls = []
+    monkeypatch.setattr(a8_auto_label, "update_labels", lambda key, labels: calls.append((key, labels)))
+    a8_auto_label.run()
+    assert calls == []
+
+
+def test_a8_shared_mode_never_stamps_peo_or_compliance_as_taxops(monkeypatch):
+    import a8_auto_label
+    monkeypatch.setenv("SHARED_QUALITY_GATE_ENABLED", "true")
+    calls = []
+    monkeypatch.setattr(a8_auto_label, "update_labels", lambda key, labels: calls.append((key, labels)))
+    a8_auto_label.run()
+    assert calls == []
+

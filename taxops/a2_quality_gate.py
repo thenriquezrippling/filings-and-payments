@@ -24,6 +24,8 @@ Adds `missing-sfdc-link` when no Salesforce Case is associated via the connector
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
+from a3_label_quadrant import validate_label_quadrants
+from a4_signoff_mismatch import validate_signoff_text
 
 # Valid components from Tax Platform Support tickets routing table
 # Source: https://rippling.atlassian.net/wiki/spaces/ENG/pages/5508040353
@@ -153,7 +155,7 @@ def _validate(issue):
     return reasons
 
 
-def run():
+def _run_legacy():
     issues = jira_search(
         f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND {JQL_TAXOPS_OWNED} AND updated >= "-30m"',
         fields=COMMON_FIELDS + ["description", "components"],
@@ -206,6 +208,70 @@ def run():
 
         except Exception as e:
             post_error(f"A2 error on {key}: {e}")
+
+
+def evaluate_shared_quality_gate(issue):
+    """Authoritative, side-effect-free shared Quality Gate evaluation."""
+    fields = issue.get("fields", {})
+    labels = get_labels(issue)
+    priority_name = (fields.get("priority") or {}).get("name", "")
+    a2_failures = _validate(issue)
+    a3_failures = validate_label_quadrants(labels, shared_origin_mode=True)
+    a4_failures = validate_signoff_text(issue)
+    origin = validate_origin_team_labels(labels)
+    reviewer = reviewer_validation_status(issue, origin.get("origin_team", ""))
+    routing = routing_config_status(origin.get("origin_team", ""))
+    p0 = p0_verification_status(labels)
+    priority_plan = priority_label_plan(labels, priority_name, reviewer_validation_verified=reviewer.get("verified", False), p0_verified=p0.get("verified", False))
+    blocking = []
+    for part in (a2_failures, a3_failures, a4_failures, origin.get("failures", []), priority_plan.get("failures", [])):
+        blocking.extend(part)
+    for item in (reviewer, routing, p0):
+        if item.get("failure"):
+            blocking.append(item["failure"])
+    return {
+        "quality_gate_passed": False if blocking else True,
+        "issue_key": issue.get("key", ""),
+        "evaluated_updated_at": fields.get("updated", ""),
+        "current_status": (fields.get("status") or {}).get("name", ""),
+        "origin_team": origin.get("origin_team", ""),
+        "jira_priority": priority_name,
+        "desired_engineering_priority_label": priority_plan.get("desired", ""),
+        "a2_failures": a2_failures,
+        "a3_failures": a3_failures,
+        "a4_failures": a4_failures,
+        "origin_failures": origin.get("failures", []),
+        "reviewer_validation_status": reviewer.get("status", "unavailable"),
+        "routing_configuration_status": routing.get("status", "missing"),
+        "p0_verification_status": p0.get("status", "not_present"),
+        "blocking_failures": blocking,
+        "warnings": priority_plan.get("warnings", []),
+        "can_sync_priority_label": False,
+        "can_transition_open": False,
+    }
+
+def _run_shared_orchestrated():
+    issues = jira_search(f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND updated >= "-30m"', fields=COMMON_FIELDS + ["description", "components"])
+    print(f"[A2] shared Quality Gate evaluating {len(issues)} recently updated tickets")
+    for issue in issues:
+        key = issue["key"]
+        try:
+            result = evaluate_shared_quality_gate(issue)
+            failures = result["blocking_failures"]
+            if failures:
+                failure_list = "\n".join(f"• {f}" for f in failures)
+                print(f"[A2] {key} shared Quality Gate blocked:\n{failure_list}")
+                if not has_auto_flag(key, "AUTO_FLAG:SHARED_QUALITY_GATE"):
+                    add_comment(key, "AUTO_FLAG:SHARED_QUALITY_GATE — Shared Quality Gate blocked.\n\n" + failure_list + "\n\nNo Engineering priority labels or Jira statuses were changed because reviewer validation is not verifiable.")
+            else:
+                print(f"[A2] {key} shared Quality Gate checks pass, but automation remains report-only until reviewer validation is configured")
+        except Exception as e:
+            post_error(f"A2 shared Quality Gate error on {key}: {e}")
+
+def run():
+    if shared_quality_gate_enabled():
+        return _run_shared_orchestrated()
+    return _run_legacy()
 
 
 if __name__ == "__main__":

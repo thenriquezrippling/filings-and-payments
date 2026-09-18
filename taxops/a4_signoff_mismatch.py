@@ -31,7 +31,17 @@ def _check_signoff(issue):
     return True, ""
 
 
+def validate_signoff_text(issue):
+    """Side-effect-free sign-off text validation. This is not reviewer approval."""
+    ok, reason = _check_signoff(issue)
+    return [] if ok else [reason]
+
+
 def run():
+    if shared_quality_gate_enabled():
+        print("[A4] shared Quality Gate orchestrator is enabled; standalone sign-off mutations skipped")
+        return
+
     issues = jira_search(
         f'{BASE_JQL} AND {JQL_OPEN_ONLY} AND {JQL_TAXOPS_OWNED} AND updated >= "-30m"',
         fields=COMMON_FIELDS + ["description"],

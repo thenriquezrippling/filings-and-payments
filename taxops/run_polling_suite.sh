@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run all TaxOps polling automations in one job.
-# - A8 runs first: stamp us-taxops-ticket on any PF Ops ticket missing it.
-# - A1–A7, A9 then run only on tickets that carry that label (see JQL_TAXOPS_OWNED).
+# - A8 runs first for legacy TaxOps ownership stamping unless the shared Quality Gate flag is enabled.
+# - When shared Quality Gate mode is enabled, A2 is the authoritative gate evaluator and A3/A4 skip standalone mutations.
 # - Always runs every script (one failure does not skip the rest).
 # - Exits 1 if any script failed (GitHub shows the workflow as failed).
 # - On failure: posts one Slack/Zapier message listing failed scripts + run link.

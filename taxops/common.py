@@ -343,7 +343,7 @@ def ops_has_responded(issue_key, reporter_account_id, since_dt=None):
 
 
 def _is_wfo_internal_coordination(text, commenter_id, reporter_account_id):
-    """Ops leader/manager nudging the reporter â not an answer for Engineering."""
+    """Ops routing/nudging comments are not answers for Engineering."""
     if not reporter_account_id or commenter_id == reporter_account_id:
         return False
     lowered = text.lower()
@@ -725,6 +725,16 @@ _WFO_COORDINATION_PATTERNS = [
     r"\bensure\s+.+\s+respond\b",
     r"\bping(?:ing)?\s+",
     r"\btagging\s+",
+
+    # Routing / ownership nudges are not answers to Engineering's WFO ask.
+    # Example: tagging another teammate with "This needs Compliance" should not
+    # move the ticket out of Waiting for Ops.
+    r"\bthis\s+needs\s+(compliance|eng|engineering|tax\s+setup|filings?|amendments?|review)\b",
+    r"\bneeds\s+(compliance|eng|engineering|tax\s+setup|filings?|amendments?|review)\b",
+    r"\bthis\s+is\s+for\s+([a-z0-9_ -]+|the\s+.+team)\b",
+    r"\b(could|can)\s+you\s+(please\s+)?(assist|help|review|take\s+a\s+look)\b",
+    r"\bplease\s+(assist|help|review|take\s+a\s+look)\b",
+    r"\bcan\s+we\s+have\s+.+sign[- ]?off\b",
 ]
 
 # WFO: reporter stall without substance â not yet actionable for Engineering.

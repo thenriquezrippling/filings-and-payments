@@ -256,6 +256,19 @@ def has_auto_flag(issue_key, flag):
             return True
     return False
 
+def has_auto_flag_since(issue_key, flag, since_dt):
+    """True when an automation marker comment exists on or after since_dt."""
+    if since_dt is None:
+        return has_auto_flag(issue_key, flag)
+    for c in get_comments(issue_key):
+        created = _safe_parse_dt(c.get("created", ""))
+        if not created or created < since_dt:
+            continue
+        if flag in _adf_to_text(c.get("body", {})):
+            return True
+    return False
+
+
 
 def hours_since_comment_matching(issue_key, text_substring):
     """Hours since the latest comment containing substring, or None if never."""

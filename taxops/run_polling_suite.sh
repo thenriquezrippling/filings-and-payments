@@ -3,6 +3,7 @@
 # - A8 runs first: stamp us-taxops-ticket on any PF Ops ticket missing it.
 # - A10 runs next: stamp the mapped p#_priority label on tickets missing one.
 # - A1–A7, A9 then run only on tickets that carry the TaxOps ownership label (see JQL_TAXOPS_OWNED).
+# - A1 PEO runs only on tickets that carry peo-ops-ticket (see JQL_PEO_OPS_OWNED).
 # - Always runs every script (one failure does not skip the rest).
 # - Exits 1 if any script failed (GitHub shows the workflow as failed).
 # - On failure: posts one Slack/Zapier message listing failed scripts + run link.
@@ -29,6 +30,7 @@ run_one() {
 run_one "A8 Auto ownership label"    "a8_auto_label.py"
 run_one "A10 Priority label mapping" "a10_priority_label.py"
 run_one "A1 WFO accountability"      "a1_wfo_accountability.py"
+run_one "A1 PEO WFO accountability"  "a1_peo_wfo_accountability.py"
 run_one "A2 Quality gate"            "a2_quality_gate.py"
 run_one "A3 Label quadrant"          "a3_label_quadrant.py"
 run_one "A4 Sign-off mismatch"       "a4_signoff_mismatch.py"

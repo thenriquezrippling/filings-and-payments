@@ -26,8 +26,10 @@ def _require(name):
 JIRA_BASE_URL      = os.getenv("JIRA_BASE_URL", "https://rippling.atlassian.net")
 JIRA_EMAIL         = _require("JIRA_EMAIL")
 JIRA_API_TOKEN     = _require("JIRA_API_TOKEN")
-SLACK_WEBHOOK_OPS  = _require("SLACK_WEBHOOK_OPS")
-SLACK_WEBHOOK_EXEC = _require("SLACK_WEBHOOK_EXEC")
+SLACK_WEBHOOK_OPS     = _require("SLACK_WEBHOOK_OPS")
+SLACK_WEBHOOK_EXEC    = _require("SLACK_WEBHOOK_EXEC")
+# Optional until the PEO Ops Zapier catch hook is created and saved as a GitHub Actions secret.
+SLACK_WEBHOOK_PEO_OPS = os.getenv("SLACK_WEBHOOK_PEO_OPS", "")
 RANA_UID           = os.getenv("RANA_SLACK_UID", "U026W3CCKLG")
 
 FALLBACK_MENTION = "<!subteam^S0BAR97SKDG>"  # @us-taxops-region-coordinators (reporter fallback)
@@ -41,10 +43,11 @@ REGION_COORDINATORS_MENTION = "<!subteam^S0BAR97SKDG>"
 JIRA_PROJECT = "PF"
 ISSUE_TYPE   = "Ops - Customer Task"
 
-CH_OPS   = "ops"
-CH_LEAD  = "ops"
-CH_EXEC  = "exec"
-CH_ERROR = "ops"
+CH_OPS     = "ops"
+CH_LEAD    = "ops"
+CH_EXEC    = "exec"
+CH_ERROR   = "ops"
+CH_PEO_OPS = "peo_ops"
 
 GOVERNANCE_START = "2026-05-18"  # cleanup_governance_labels.py only; not used in polling JQL
 
@@ -98,6 +101,10 @@ JQL_OPEN_ONLY = "statusCategory != Done"
 TAXOPS_OWNERSHIP_LABEL = "us-taxops-ticket"
 JQL_TAXOPS_OWNED     = f'labels = "{TAXOPS_OWNERSHIP_LABEL}"'
 
+# PEO Ops ownership — used by the PEO-specific Waiting-for-Ops notification path.
+PEO_OPS_OWNERSHIP_LABEL = "peo-ops-ticket"
+JQL_PEO_OPS_OWNED      = f'labels = "{PEO_OPS_OWNERSHIP_LABEL}"'
+
 COMMON_FIELDS = [
     "summary", "status", "labels", "assignee", "reporter",
     "priority", "created", "updated", "statuscategorychangedate",
@@ -107,7 +114,14 @@ COMMON_FIELDS = [
 # -- Slack --------------------------------------------------------------------
 
 def _webhook_url(channel):
-    return SLACK_WEBHOOK_EXEC if channel == CH_EXEC else SLACK_WEBHOOK_OPS
+    if channel == CH_EXEC:
+        return SLACK_WEBHOOK_EXEC
+    if channel == CH_PEO_OPS:
+        if not SLACK_WEBHOOK_PEO_OPS:
+            print("FATAL: required env var 'SLACK_WEBHOOK_PEO_OPS' is not set", file=sys.stderr)
+            sys.exit(1)
+        return SLACK_WEBHOOK_PEO_OPS
+    return SLACK_WEBHOOK_OPS
 
 
 def slack_post(text, channel, ticket_key=""):
@@ -375,14 +389,8 @@ def _is_substantive_eng_response(text, commenter_id, reporter_account_id):
     return True
 
 
-def find_actionable_wfo_response(issue_key, since_dt, reporter_account_id):
-    """
-    Newest TaxOps-roster comment since `since_dt` that answers Engineering's WFO
-    request (not internal coordination with the reporter IC).
-
-    Uses TAXOPS_SLACK_UIDS for org membership â assignee is not used because
-    assignee may be Engineering while the ticket is in Waiting for Ops.
-    """
+def _find_actionable_wfo_response(issue_key, since_dt, reporter_account_id, is_allowed_commenter):
+    """Newest allowed comment since `since_dt` that answers Engineering's WFO request."""
     if since_dt is None:
         return None
 
@@ -400,7 +408,7 @@ def find_actionable_wfo_response(issue_key, since_dt, reporter_account_id):
         display_name = author.get("displayName", "")
         commenter_id = author.get("accountId", "")
 
-        if not is_taxops_org_member(display_name):
+        if not is_allowed_commenter(display_name, commenter_id):
             continue
         if _is_wfo_internal_coordination(text, commenter_id, reporter_account_id):
             continue
@@ -415,6 +423,36 @@ def find_actionable_wfo_response(issue_key, since_dt, reporter_account_id):
             }
 
     return best
+
+
+def find_actionable_wfo_response(issue_key, since_dt, reporter_account_id):
+    """
+    Newest TaxOps-roster comment since `since_dt` that answers Engineering's WFO
+    request (not internal coordination with the reporter IC).
+
+    Uses TAXOPS_SLACK_UIDS for org membership â assignee is not used because
+    assignee may be Engineering while the ticket is in Waiting for Ops.
+    """
+    return _find_actionable_wfo_response(
+        issue_key,
+        since_dt,
+        reporter_account_id,
+        lambda display_name, commenter_id: is_taxops_org_member(display_name),
+    )
+
+
+def find_actionable_wfo_response_from_reporter(issue_key, since_dt, reporter_account_id):
+    """
+    Newest reporter-authored comment since `since_dt` that answers Engineering's WFO
+    request. Used by the PEO Ops WFO path where we do not maintain a separate
+    PEO Ops roster in this repo.
+    """
+    return _find_actionable_wfo_response(
+        issue_key,
+        since_dt,
+        reporter_account_id,
+        lambda display_name, commenter_id: bool(reporter_account_id) and commenter_id == reporter_account_id,
+    )
 
 
 def status_entered_at(issue_key, status_name):
@@ -600,11 +638,13 @@ def normalize_filings_amendments_region(issue, issue_key, labels):
     return labels, False
 
 
-def reporter_tag_for(issue):
-    """Return <@UID> for the ticket reporter, or @us-taxops-region-coordinators fallback."""
+def reporter_tag_for(issue, fallback=None):
+    """Return <@UID> for the ticket reporter, or the supplied/default fallback."""
     name = (issue.get("fields", {}).get("reporter") or {}).get("displayName", "")
     uid  = slack_uid_for_name(name)
-    return f"<@{uid}>" if uid else FALLBACK_MENTION
+    if uid:
+        return f"<@{uid}>"
+    return FALLBACK_MENTION if fallback is None else fallback
 
 
 def lead_tag_for(labels, is_peo=False):

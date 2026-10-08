@@ -18,6 +18,8 @@ Non-ticket posts (e.g. `post_error`) send only `message` (no `ticket_key`).
 
 The weekly digest (A6) uses a **different** JSON shape and the **exec** webhook — not this threading model.
 
+PEO Ops WFO alerts use the same `message` + `ticket_key` shape through the `SLACK_WEBHOOK_PEO_OPS` GitHub Actions secret. That Zap should post to `#peo-ops-jira-gatekeeping` / `C0C41DU8LDB` and use the same per-`ticket_key` threading logic as the TaxOps ops Zap.
+
 ## Slack mentions in alert text
 
 Mentions are embedded in the `message` string (Zapier posts them as-is).
@@ -80,7 +82,7 @@ If everything above matches and it still splits threads, compare **two Task Hist
 Use this when you already have **two Paths** and a **search** step (e.g. “Zap Search Was Found Status”), but Slack still opens a **new** top-level message every time.
 
 ### Before you start
-- [ ] You are editing the Zap whose Catch Hook URL is in GitHub **`SLACK_WEBHOOK_OPS`** (TaxOps ops alerts).
+- [ ] You are editing the Zap whose Catch Hook URL is in GitHub **`SLACK_WEBHOOK_OPS`** (TaxOps ops alerts) or **`SLACK_WEBHOOK_PEO_OPS`** (PEO Ops WFO alerts).
 - [ ] In **Task history**, pick one run and confirm the hook payload includes **`ticket_key`** (e.g. `PF-12345`) for ticket alerts.
 
 ### 1. Order of steps (top → bottom)

@@ -310,6 +310,14 @@ def update_labels(issue_key, labels):
     r.raise_for_status()
 
 
+def update_priority(issue_key, priority_name):
+    """Update Jira Priority by display name, e.g. Highest, High, Medium, Low."""
+    url = JIRA_BASE_URL + "/rest/api/3/issue/" + issue_key
+    r   = requests.put(url, headers=_jira_auth(),
+                       json={"fields": {"priority": {"name": priority_name}}}, timeout=30)
+    r.raise_for_status()
+
+
 def add_label(issue, issue_key, label):
     current = get_labels(issue)
     if label not in current:

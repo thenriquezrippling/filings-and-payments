@@ -14,6 +14,9 @@ Jira Priority is the source of truth:
 - Low -> p4_priority
 
 Non-priority labels are preserved and exactly one mapped `p#_priority` label is kept.
+
+`p0_priority` is treated as a protected manual override and is never removed or
+replaced by this automation.
 """
 import os
 import re
@@ -29,7 +32,8 @@ PRIORITY_TO_LABEL = {
     "Low": "p4_priority",
 }
 
-PRIORITY_LABEL_RE = re.compile(r"^p\d+_priority$")
+PRIORITY_LABEL_RE = re.compile(r"^p[1-4]_priority$")
+PROTECTED_PRIORITY_LABELS = {"p0_priority"}
 
 
 def is_priority_label(label):
@@ -38,6 +42,14 @@ def is_priority_label(label):
 
 def priority_labels(labels):
     return [label for label in labels if is_priority_label(label)]
+
+
+def has_protected_priority_label(labels):
+    return any(label in PROTECTED_PRIORITY_LABELS for label in labels)
+
+
+def protected_priority_labels(labels):
+    return [label for label in labels if label in PROTECTED_PRIORITY_LABELS]
 
 
 def synced_labels(labels, mapped_label):
@@ -86,13 +98,23 @@ def run():
             issue_type = (fields.get("issuetype") or {}).get("name")
             project = (fields.get("project") or {}).get("key")
             existing_priority_labels = priority_labels(current)
+            existing_protected_priority_labels = protected_priority_labels(current)
 
             print(
                 f"[A10] Inspecting {key}: project={project}, issue_type={issue_type}, "
                 f"status={status}, jira_priority={priority}, expected_label={mapped_label}, "
                 f"priority_labels={summarize_labels(existing_priority_labels)}, "
+                f"protected_priority_labels={summarize_labels(existing_protected_priority_labels)}, "
                 f"all_labels={summarize_labels(current)}"
             )
+
+            if has_protected_priority_label(current):
+                skipped += 1
+                print(
+                    f"[A10] Skipping {key}: protected manual priority label present "
+                    f"({summarize_labels(existing_protected_priority_labels)})"
+                )
+                continue
 
             if not mapped_label:
                 skipped += 1

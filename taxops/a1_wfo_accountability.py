@@ -85,17 +85,22 @@ def run():
 
 def _process(issue, key, summary, url, labels, is_peo,
              assignee_name, priority, entry_ts):
-    elapsed_biz_h       = biz_hours_since(entry_ts)
-    elapsed_cal_h       = calendar_hours_since(entry_ts)
     rep_tag             = reporter_tag_for(issue)
     lead_tag            = lead_tag_for(labels, is_peo)
     reporter_account_id = (issue["fields"].get("reporter") or {}).get("accountId", "")
 
-    if has_auto_flag(key, "AUTO_FLAG:OPS_RESPONDED"):
+    # Scope all WFO markers to the current Waiting for Ops cycle. A ticket can
+    # legitimately leave Waiting for Ops after Ops responds, then re-enter WFO
+    # after Engineering replies. In that new cycle, 24h / 72h timers restart.
+    wfo_since           = status_entered_at(key, "Waiting for Ops") or _safe_parse_dt(entry_ts)
+    wfo_since_str       = wfo_since.isoformat() if wfo_since else entry_ts
+    elapsed_biz_h       = biz_hours_since(wfo_since_str)
+    elapsed_cal_h       = calendar_hours_since(wfo_since_str)
+
+    if has_auto_flag_since(key, "AUTO_FLAG:OPS_RESPONDED", wfo_since):
         return
 
     # -- Ops response detection (highest priority check) ----------------------
-    wfo_since = status_entered_at(key, "Waiting for Ops") or _safe_parse_dt(entry_ts)
     response  = find_actionable_wfo_response(key, wfo_since, reporter_account_id) if wfo_since else None
 
     if response:
@@ -133,7 +138,7 @@ def _process(issue, key, summary, url, labels, is_peo,
     context_line = f"*Issue:* {desc_snippet}" if desc_snippet else ""
 
     # Level 0 — Initial notification
-    if not has_auto_flag(key, "AUTO_FLAG:WAITING_OPS_INITIAL"):
+    if not has_auto_flag_since(key, "AUTO_FLAG:WAITING_OPS_INITIAL", wfo_since):
         add_comment(key, "AUTO_FLAG:WAITING_OPS_INITIAL — Entered Waiting for Ops queue.")
         add_label(issue, key, "waiting-for-ops")
 
@@ -158,8 +163,26 @@ def _process(issue, key, summary, url, labels, is_peo,
             )
         return
 
+    # Level 2 — 72 calendar hours
+    if elapsed_cal_h >= 72 and not has_auto_flag_since(key, "AUTO_FLAG:WAITING_OPS_72H", wfo_since):
+        add_comment(key, "AUTO_FLAG:WAITING_OPS_72H — 72 calendar hours elapsed.")
+        add_label(issue, key, "waiting-for-ops-72h")
+        slack_post(
+            f":rotating_light: *WFO 72h HARD ESCALATION* {MEN_LEADS2} {rep_tag} — <{url}|{key}>\n"
+            f"{summary}\n"
+            f"*Priority:* {priority} | *Assignee:* {assignee_name}\n"
+            f"*Issue:* 72 hours elapsed with no response — customer is waiting.\n"
+            f"*Action:* Immediate response required. Escalate to leadership if blocked.",
+            CH_OPS,
+            ticket_key=key,
+        )
+
     # Level 1 — 24 business hours
-    if elapsed_biz_h >= 24 and not has_auto_flag(key, "AUTO_FLAG:WAITING_OPS_24H"):
+    if (
+        elapsed_biz_h >= 24
+        and not has_auto_flag_since(key, "AUTO_FLAG:WAITING_OPS_24H", wfo_since)
+        and not has_auto_flag_since(key, "AUTO_FLAG:WAITING_OPS_72H", wfo_since)
+    ):
         add_comment(key, "AUTO_FLAG:WAITING_OPS_24H — 24 business hours elapsed, no response.")
         add_label(issue, key, "waiting-for-ops-24h")
         slack_post(
@@ -173,19 +196,6 @@ def _process(issue, key, summary, url, labels, is_peo,
         )
         return
 
-    # Level 2 — 72 calendar hours
-    if elapsed_cal_h >= 72 and not has_auto_flag(key, "AUTO_FLAG:WAITING_OPS_72H"):
-        add_comment(key, "AUTO_FLAG:WAITING_OPS_72H — 72 calendar hours elapsed.")
-        add_label(issue, key, "waiting-for-ops-72h")
-        slack_post(
-            f":rotating_light: *WFO 72h HARD ESCALATION* {MEN_LEADS2} {rep_tag} — <{url}|{key}>\n"
-            f"{summary}\n"
-            f"*Priority:* {priority} | *Assignee:* {assignee_name}\n"
-            f"*Issue:* 72 hours elapsed with no response — customer is waiting.\n"
-            f"*Action:* Immediate response required. Escalate to leadership if blocked.",
-            CH_OPS,
-            ticket_key=key,
-        )
 
 
 if __name__ == "__main__":

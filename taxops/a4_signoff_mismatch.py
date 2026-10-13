@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import *
 
 SIGNOFF_RE = re.compile(r"reviewed and signed off by\s*:\s*(.+)", re.IGNORECASE)
-EXEMPT_REPORTER_NAMES = {"vijay kumar", "rashmita topakulu"}
 
 
 def _check_signoff(issue):
@@ -45,8 +44,7 @@ def run():
         url     = issue_url(key)
         labels  = get_labels(issue)
 
-        reporter_name = ((fields.get("reporter") or {}).get("displayName") or "").lower()
-        if reporter_name in EXEMPT_REPORTER_NAMES:
+        if is_signoff_exempt_reporter(issue):
             if "signoff-mismatch" in labels:
                 remove_label(issue, key, "signoff-mismatch")
             continue

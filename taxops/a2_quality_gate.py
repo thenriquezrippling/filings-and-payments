@@ -129,7 +129,7 @@ def _validate(issue):
             if not re.search(pat, desc, re.IGNORECASE):
                 reasons.append(f"Missing required field: {label}")
 
-        if not re.search(r"Reviewed and signed off by", desc, re.IGNORECASE):
+        if not is_signoff_exempt_reporter(issue) and not re.search(r"Reviewed and signed off by", desc, re.IGNORECASE):
             reasons.append('Missing "Reviewed and signed off by:" line')
 
     reasons.extend(_validate_salesforce_case(issue))

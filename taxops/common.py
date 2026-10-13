@@ -53,6 +53,14 @@ SF_ASSOCIATIONS_PROPERTY = "com.servicerocket.jira.cloud.issue.salesforce.associ
 SF_CASE_DESC_PATTERN     = re.compile(r"(salesforce\.com|Case\s*#\s*\d+|SF-\d+)", re.IGNORECASE)
 MISSING_SFDC_LINK_LABEL  = "missing-sfdc-link"
 
+# Reporters whose tickets do not require the region-lead sign-off line.
+SIGNOFF_EXEMPT_REPORTER_NAMES = {"vijay kumar", "rashmita topakulu"}
+
+def is_signoff_exempt_reporter(issue):
+    fields = issue.get("fields", {})
+    reporter_name = ((fields.get("reporter") or {}).get("displayName") or "").strip().lower()
+    return reporter_name in SIGNOFF_EXEMPT_REPORTER_NAMES
+
 REGION_LEADS = {
     "west-region":      ("U03BFEP9614", "U0789C02H6F"),
     "south-region":     ("U04HQQ0TEDN", "U064GL0HC1X"),

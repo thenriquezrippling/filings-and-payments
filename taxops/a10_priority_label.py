@@ -3,15 +3,20 @@ A10 - Sync Priority Mapping Label
 Polling every 15 min.
 Runs after A8 ownership labeling (see run_polling_suite.sh).
 
-Keeps the mapped `p#_priority` label in sync with Jira Priority for open PF
+Keeps the mapped `p#_priority` label aligned with Jira Priority for open PF
 Ops-Customer-Task tickets that use Jira Priority values Highest, High, Medium,
 or Low.
 
-Jira Priority is the source of truth:
+Normal Jira Priority mapping:
 - Highest -> p1_priority
 - High -> p2_priority
 - Medium -> p3_priority
 - Low -> p4_priority
+
+No-downgrade behavior:
+- If Jira Priority maps to a more urgent label, update the label upward.
+- If an existing p1-p4 label is already more urgent than Jira Priority, keep the
+  more urgent label and do not downgrade it.
 
 Non-priority labels are preserved and exactly one mapped `p#_priority` label is kept.
 
@@ -34,6 +39,12 @@ PRIORITY_TO_LABEL = {
 
 PRIORITY_LABEL_RE = re.compile(r"^p[1-4]_priority$")
 PROTECTED_PRIORITY_LABELS = {"p0_priority"}
+PRIORITY_LABEL_RANK = {
+    "p1_priority": 1,
+    "p2_priority": 2,
+    "p3_priority": 3,
+    "p4_priority": 4,
+}
 
 
 def is_priority_label(label):
@@ -52,10 +63,26 @@ def protected_priority_labels(labels):
     return [label for label in labels if label in PROTECTED_PRIORITY_LABELS]
 
 
-def synced_labels(labels, mapped_label):
+def most_urgent_priority_label(labels):
+    candidates = [label for label in labels if is_priority_label(label)]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda label: PRIORITY_LABEL_RANK[label])
+
+
+def desired_priority_label(labels, mapped_label):
+    existing = most_urgent_priority_label(labels)
+    if not existing:
+        return mapped_label
+    if PRIORITY_LABEL_RANK[existing] < PRIORITY_LABEL_RANK[mapped_label]:
+        return existing
+    return mapped_label
+
+
+def synced_labels(labels, desired_label):
     non_priority_labels = [label for label in labels if not is_priority_label(label)]
-    if mapped_label not in non_priority_labels:
-        non_priority_labels.append(mapped_label)
+    if desired_label not in non_priority_labels:
+        non_priority_labels.append(desired_label)
     return non_priority_labels
 
 
@@ -73,7 +100,7 @@ def run():
     )
 
     print(f"[A10] JQL: {jql}")
-    print("[A10] Jira Priority is source of truth")
+    print("[A10] Jira Priority mapping with no-downgrade protection for existing p1-p4 labels")
     print("[A10] Expected mapping: " + ", ".join(f"{k}->{v}" for k, v in PRIORITY_TO_LABEL.items()))
 
     issues = jira_search(
@@ -121,16 +148,25 @@ def run():
                 print(f"[A10] Skipping {key}: no mapping for priority={priority}")
                 continue
 
-            updated = synced_labels(current, mapped_label)
+            desired_label = desired_priority_label(current, mapped_label)
+            updated = synced_labels(current, desired_label)
             if set(updated) == set(current) and len(updated) == len(current):
                 skipped += 1
-                print(f"[A10] Skipping {key}: already synced to Jira Priority {priority}/{mapped_label}")
+                if desired_label != mapped_label:
+                    print(
+                        f"[A10] Skipping {key}: preserving more urgent priority label "
+                        f"{desired_label} over Jira Priority {priority}/{mapped_label}"
+                    )
+                else:
+                    print(f"[A10] Skipping {key}: already synced to Jira Priority {priority}/{mapped_label}")
                 continue
 
             update_labels(key, updated)
             fixed += 1
+            action = "preserved more urgent existing label" if desired_label != mapped_label else "synced to Jira Priority"
             print(
-                f"[A10] Synced {key}: Jira Priority={priority}, expected_label={mapped_label}, "
+                f"[A10] Synced {key}: action={action}, Jira Priority={priority}, "
+                f"mapped_label={mapped_label}, desired_label={desired_label}, "
                 f"old_priority_labels={summarize_labels(existing_priority_labels)}, "
                 f"new_labels={summarize_labels(updated)}"
             )
